@@ -20,6 +20,7 @@
 
 #if defined(CCL_ENABLE_ZE) || defined(CCL_ENABLE_SYCL)
 #include "comm/comm_interface.hpp"
+#include "coll/algorithms/utils/sycl_coll_base.hpp"
 #endif //#if defined(CCL_ENABLE_ZE) || defined(CCL_ENABLE_SYCL)
 
 #include "common/global/global.hpp"
@@ -63,4 +64,8 @@ size_t reduce_scatter_select_chunk_size(reduce_scatter_scaleout_algo algo,
                                         size_t comm_size);
 
 // allgatherv
-size_t allgatherv_select_chunk_size();
+sycl_allgatherv_tune_attr allgatherv_select_tune_attr(size_t size,
+                                                      size_t comm_size,
+                                                      ccl_datatype ccl_dtype);
+
+size_t allgatherv_select_chunk_size(allgatherv_scaleout_algo algo, size_t size, size_t comm_size);

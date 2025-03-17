@@ -324,6 +324,19 @@ constexpr const char* CCL_SYCL_REDUCE_SCATTER_MEDIUM_THRESHOLD = "CCL_SYCL_REDUC
 constexpr const char* CCL_SYCL_REDUCE_SCATTER_SCALEOUT_THRESHOLD = "CCL_SYCL_REDUCE_SCATTER_SCALEOUT_THRESHOLD";
 
 /**
+ * @brief Specify allgatherv SYCL scale-out algorithm
+ *
+ * @details Set the algorithm string from a list of available algorithms to set
+ * a specific algorithm for scale-out phase.
+ * ALLGATHERV algorithms
+ * - auto           Automatic selection. Default vaue.
+ * - direct         Based on MPI_Iallgatherv
+ * - ring           Ring algorithm
+ *
+ */
+constexpr const char* CCL_SYCL_ALLGATHERV_SCALEOUT = "CCL_SYCL_ALLGATHERV_SCALEOUT";
+
+/**
  * @brief Specify reduce-scatter SYCL scale-out algorithm
  *
  * @details Set the algorithm string from a list of available algorithms to set

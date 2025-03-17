@@ -13,7 +13,6 @@
  See the License for the specific language governing permissions and
  limitations under the License.
 */
-#include "coll/algorithms/utils/sycl_coll_base.hpp"
 #include "coll/algorithms/allgatherv/sycl/allgatherv_sycl.hpp"
 
 namespace ccl {
@@ -257,6 +256,8 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
             scaleout_offsets[i] = (i * pack_count) * ccl_dtype.size();
         }
 
+        sycl_allgatherv_tune_attr scaleout_tune_attr =
+            allgatherv_select_tune_attr(pack_count * ccl_dtype.size(), r2r_comm->size(), ccl_dtype);
         ev = allgatherv_scaleout_sycl(q,
                                       scaleout_send,
                                       pack_count,
@@ -267,7 +268,7 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
                                       iter == 0 ? deps : evs,
                                       iter == 0 ? true : false,
                                       done,
-                                      true,
+                                      scaleout_tune_attr,
                                       false);
         if (!done) {
             LOG_INFO("allgatherv_sycl scaleout was not done -- falling back");

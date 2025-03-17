@@ -14,7 +14,6 @@
  limitations under the License.
 */
 #include "coll/algorithms/utils/sycl_selection.hpp"
-#include "coll/algorithms/utils/sycl_coll_base.hpp"
 
 bool can_use_sycl_kernels(const ccl_selector_param& param) {
 // TODO: mitigate overhead added by can_use_sycl_kernels
@@ -489,19 +488,63 @@ sycl_reduce_scatter_tune_attr reduce_scatter_select_tune_attr(size_t size,
 }
 
 // allgatherv
-size_t default_select_chunk_size() {
+static sycl_allgatherv_tune_attr allgatherv_auto_select_tune_attr(size_t size,
+                                                                  size_t comm_size,
+                                                                  ccl_datatype ccl_dtype) {
+    if (ccl::global_data::env().atl_transport != ccl_atl_mpi) {
+        return { allgatherv_scaleout_algo::ring };
+    }
+
+    // experimental values, should be reviewed later
+    if (comm_size <= 4 && size < 262144 || comm_size <= 16 && size < 131072) {
+        return { allgatherv_scaleout_algo::direct };
+    }
+    else {
+        size_t chunk_size =
+            allgatherv_select_chunk_size(allgatherv_scaleout_algo::ring, size, comm_size);
+        return { allgatherv_scaleout_algo::ring, chunk_size };
+    }
+}
+
+sycl_allgatherv_tune_attr allgatherv_select_tune_attr(size_t size,
+                                                      size_t comm_size,
+                                                      ccl_datatype ccl_dtype) {
+    if (ccl::global_data::env().sycl_allgatherv_scaleout_algo == "auto") {
+        return allgatherv_auto_select_tune_attr(size, comm_size, ccl_dtype);
+    }
+    if (ccl::global_data::env().sycl_allgatherv_scaleout_algo == "direct") {
+        return { allgatherv_scaleout_algo::direct };
+    }
+    if (ccl::global_data::env().sycl_allgatherv_scaleout_algo == "ring") {
+        size_t chunk_size =
+            allgatherv_select_chunk_size(allgatherv_scaleout_algo::ring, size, comm_size);
+        return { allgatherv_scaleout_algo::ring, chunk_size };
+    }
+    CCL_THROW("unsupported allgatherv algo selection");
+}
+
+size_t allgatherv_select_chunk_size(allgatherv_scaleout_algo algo, size_t size, size_t comm_size) {
     // read defaults and user input
     size_t max_pipeline_chunk_size = ccl::global_data::env().sycl_max_pipeline_chunk_size;
     ssize_t env_pipeline_chunk_size = ccl::global_data::env().sycl_pipeline_chunk_size;
-    size_t auto_pipeline_chunk_size = 2 * 1024 * 1024;
     // respect user input
     if (env_pipeline_chunk_size != CCL_ENV_SIZET_NOT_SPECIFIED) {
         return std::min((size_t)env_pipeline_chunk_size, max_pipeline_chunk_size);
     }
+    size_t auto_pipeline_chunk_size = 2 * 1024 * 1024;
+    switch (algo) {
+        case allgatherv_scaleout_algo::ring:
+            if (size >= 128 * 1024 * 1024)
+                auto_pipeline_chunk_size = 64 * 1024 * 1024;
+            else if (size >= 16 * 1024 * 1024)
+                auto_pipeline_chunk_size = 8 * 1024 * 1024;
+            else
+                auto_pipeline_chunk_size = comm_size <= 8 ? 4 * 1024 * 1024 : 8 * 1024 * 1024;
+            break;
+        case allgatherv_scaleout_algo::direct:
+            LOG_WARN("allgatherv direct alogrithm is not supporting pipeline chunk size tuning");
+            break;
+    }
     // error protection
     return std::min(auto_pipeline_chunk_size, max_pipeline_chunk_size);
-}
-
-size_t allgatherv_select_chunk_size() {
-    return default_select_chunk_size();
 }

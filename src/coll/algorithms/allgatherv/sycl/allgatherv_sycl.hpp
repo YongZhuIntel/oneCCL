@@ -15,6 +15,8 @@
 */
 #pragma once
 
+#include "coll/algorithms/utils/sycl_selection.hpp"
+
 #define SYCL_ALLGATHERV_FUNCTIONS(MSGSIZE) \
     void init_allgatherv_##MSGSIZE(ccl::datatype dtype, \
                                    sycl::queue& queue, \
@@ -106,7 +108,7 @@ ccl::event allgatherv_scaleout_sycl(sycl::queue& q,
                                     const ccl::vector_class<ccl::event>& deps,
                                     bool original_deps,
                                     bool& done,
-                                    bool direct,
+                                    sycl_allgatherv_tune_attr tune_attr,
                                     bool is_cpu_buffers = false);
 
 ccl::event allgatherv_scaleout_sycl_direct(sycl::queue& q,
