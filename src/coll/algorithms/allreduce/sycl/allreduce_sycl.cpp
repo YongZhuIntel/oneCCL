@@ -50,16 +50,17 @@ ccl::event allreduce_sycl_single_node(sycl::queue& q,
     if (world == 1) {
         sycl::event sycl_e;
         std::vector<sycl::event> dep_events = get_sycl_events(deps);
+        auto sycl_q = global_stream->get_native_stream();
         if (send_buf != recv_buf) {
             LOG_DEBUG("single rank: out-of-place case, coll: allreduce");
-            sycl_e = q.submit([=](sycl::handler& h) {
+            sycl_e = sycl_q.submit([=](sycl::handler& h) {
                 h.depends_on(dep_events);
                 h.memcpy(recv_buf, send_buf, count * ccl_dtype.size());
             });
         }
         else {
             LOG_DEBUG("single rank: inplace case, coll: allreduce");
-            sycl_e = submit_wait_on_events(q, dep_events);
+            sycl_e = submit_wait_on_events(sycl_q, dep_events);
         }
         return ccl::event::create_from_native(sycl_e);
     }

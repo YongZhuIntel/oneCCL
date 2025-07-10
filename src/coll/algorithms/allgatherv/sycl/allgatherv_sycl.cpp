@@ -53,18 +53,19 @@ ccl::event allgather_sycl_single_node(sycl::queue& q,
 
     if (world == 1) {
         sycl::event sycl_e;
+        auto sycl_q = global_stream->get_native_stream();
         std::vector<sycl::event> dep_events = get_sycl_events(deps);
         if (send_buf != recv_buf) {
             LOG_DEBUG("single rank: out-of-place case, coll: allgatherv");
             void* dst_buf = offsets.empty() ? recv_buf : (char*)recv_buf + offsets[0];
-            sycl_e = q.submit([=](sycl::handler& h) {
+            sycl_e = sycl_q.submit([=](sycl::handler& h) {
                 h.depends_on(dep_events);
                 h.memcpy(dst_buf, send_buf, send_count * ccl_dtype.size());
             });
         }
         else {
             LOG_DEBUG("single rank: inplace case, coll: allgatherv");
-            sycl_e = submit_wait_on_events(q, dep_events);
+            sycl_e = submit_wait_on_events(sycl_q, dep_events);
         }
         return ccl::event::create_from_native(sycl_e);
     }
