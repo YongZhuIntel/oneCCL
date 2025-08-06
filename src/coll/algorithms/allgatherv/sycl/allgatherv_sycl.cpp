@@ -77,11 +77,18 @@ ccl::event allgather_sycl_single_node(sycl::queue& q,
             done = false;
             return e;
         }
-        LOG_DEBUG("invoking allgatherv LL256 kernel, send_count:", send_count, " datatype: ", dtype);
-        e = allgatherv_ll_ring(
-            send_buf, send_count, recv_buf, recv_counts, offsets, dtype, comm, global_stream, deps, done);
-        LOG_DEBUG("invoking allgatherv LL256 kernel, count:", send_count, " datatype: ", dtype, " done");
-        return e;
+        if (send_count * ccl_dtype.size() < 256 * 1024 || !ccl::global_data::env().sycl_ccl_barrier ||
+            ccl::global_data::env().sycl_allgatherv_tmp_buf) {
+            LOG_DEBUG("invoking allgatherv LL256 kernel, send_count:", send_count, " datatype: ", dtype);
+            e = allgatherv_ll_ring(
+                send_buf, send_count, recv_buf, recv_counts, offsets, dtype, comm, global_stream, deps, done);
+            LOG_DEBUG("invoking allgatherv LL256 kernel, count:", send_count, " datatype: ", dtype, " done");
+            return e;
+        }
+        CCL_THROW_IF_NOT(ccl::global_data::env().sycl_ccl_barrier,
+                         "To run on BMG, CCL_SYCL_CCL_BARRIER must be set to 1");
+        CCL_THROW_IF_NOT(ccl::global_data::env().sycl_allgatherv_tmp_buf == 0,
+                         "To run on BMG, CCL_SYCL_ALLGATHERV_TMP_BUF must be set to 0");
     }
 
     if (!ccl::global_data::env().sycl_esimd) {
