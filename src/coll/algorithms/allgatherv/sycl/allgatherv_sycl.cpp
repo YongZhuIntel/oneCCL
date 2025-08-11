@@ -251,6 +251,10 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
 
         sycl_allgatherv_tune_attr scaleout_tune_attr =
             allgatherv_select_tune_attr(pack_count * ccl_dtype.size(), r2r_comm->size(), ccl_dtype);
+        if (iter > 0) {
+            evs.clear();
+            evs.push_back(std::move(ev));
+        }
         ev = allgatherv_scaleout_sycl(q,
                                       scaleout_send,
                                       pack_count,
@@ -268,15 +272,14 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
             return ev;
         }
 
-        evs.clear();
-        evs.push_back(std::move(ev));
-
         // ----- Scaleup Allgatherv Inplace Phase -----
         {
             std::vector<size_t> scaleup_counts(node_size, pack_count);
             for (int i = 0; i < r2r_size; i++) {
                 std::vector<size_t> scaleup_offsets(global_offsets.begin() + i * node_size,
                                                     global_offsets.begin() + (i + 1) * node_size);
+                evs.clear();
+                evs.push_back(std::move(ev));
                 ev = allgather_sycl_single_node(q,
                                                 (char*)(scaleout_buf) + scaleout_offsets[i],
                                                 recv_scaleout_counts[i],
@@ -294,9 +297,6 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
                     LOG_ERROR("allgatherv_sycl allgatherv single node was not done -- falling back");
                     return ev;
                 }
-
-                evs.clear();
-                evs.push_back(std::move(ev));
             }
         }
 
@@ -309,15 +309,7 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
         }
     }
 
-    //auto sycl_ev = ev.get_native();
-    auto sycl_evs = get_sycl_events(evs);
-    auto e = q.submit([=](sycl::handler& h) {
-        h.depends_on(sycl_evs);
-        h.host_task([=]() {
-            global_comm->put_scaleout_device_buf(scaleout_buf);
-        });
-    });
-    ev = ccl::event::create_from_native(e);
+    global_comm->put_scaleout_device_buf(scaleout_buf);
 
     return ev;
 }
