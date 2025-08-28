@@ -15,6 +15,7 @@
 */
 #pragma once
 #include "coll/algorithms/utils/sycl_coll_base.hpp"
+#include "coll/algorithms/utils/sycl_selection.hpp"
 
 namespace ccl {
 namespace v1 {
@@ -49,3 +50,15 @@ ccl::event alltoall_large(const void* send_buf,
                           ccl_comm* comm,
                           ccl_stream* global_stream,
                           const ccl::vector_class<ccl::event>& deps);
+
+ccl::event alltoall_scaleout_sycl(sycl::queue& q,
+                                  const void* send_buf,
+                                  void* recv_buf,
+                                  size_t count,
+                                  ccl::datatype dtype,
+                                  ccl_comm* comm,
+                                  const ccl::vector_class<ccl::event>& deps,
+                                  bool original_deps,
+                                  sycl_alltoall_tune_attr tune_attr,
+                                  bool& done,
+                                  bool is_cpu_buffers);

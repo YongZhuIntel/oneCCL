@@ -67,6 +67,7 @@ if (CCL_ENABLE_SYCL AND CCL_ENABLE_ZE)
 
         coll/algorithms/alltoall/sycl/alltoall_sycl.cpp
         coll/algorithms/alltoall/sycl/alltoall_large_sycl.cpp
+        coll/algorithms/alltoall/sycl/alltoall_scaleout_sycl.cpp
 
         coll/algorithms/allreduce/sycl/allreduce_small_sycl.cpp
         coll/algorithms/allreduce/sycl/allreduce_medium_sycl.cpp
