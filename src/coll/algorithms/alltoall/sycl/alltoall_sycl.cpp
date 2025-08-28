@@ -107,6 +107,36 @@ ccl::event alltoall_sycl_single_node(sycl::queue& q,
     return e;
 }
 
+ccl::event alltoall_sycl_multi_node(sycl::queue& q,
+                                    const void* send_buf,
+                                    void* recv_buf,
+                                    size_t count,
+                                    ccl::datatype dtype,
+                                    ccl_comm* comm,
+                                    ccl_stream* global_stream,
+                                    const vector_class<event>& deps,
+                                    bool& done) {
+    if (send_buf == recv_buf) {
+        CCL_THROW("oneCCL does not support in-place Alltoall");
+    }
+
+    auto ccl_dtype = ccl::global_data::get().dtypes->get(dtype);
+    sycl_alltoall_tune_attr scaleout_tune_attr =
+        alltoall_select_tune_attr(count * ccl_dtype.size(), comm->size(), ccl_dtype);
+
+    return alltoall_scaleout_sycl(q,
+                                  send_buf,
+                                  recv_buf,
+                                  count,
+                                  dtype,
+                                  comm,
+                                  global_stream,
+                                  deps,
+                                  true,
+                                  scaleout_tune_attr,
+                                  done);
+}
+
 ccl::event alltoall_sycl(sycl::queue& q,
                          const void* send_buf,
                          void* recv_buf,
@@ -131,14 +161,21 @@ ccl::event alltoall_sycl(sycl::queue& q,
     }
 
     if (is_single_node && ccl::global_data::env().sycl_single_node_algorithm) {
-        LOG_DEBUG("is_single_node");
-        return alltoall_sycl_single_node(
-            q, send_buf, recv_buf, count, dtype, comm, op_stream, deps, done);
+        if (send_buf != recv_buf) {
+            LOG_DEBUG("is_single_node");
+            return alltoall_sycl_single_node(
+                q, send_buf, recv_buf, count, dtype, comm, op_stream, deps, done);
+        }
+        else {
+            LOG_WARN(
+                "|CCL_SYCL| sycl inplace requested for alltoall collective; inplace not supported, falling back");
+            done = false;
+            return ccl::event();
+        }
     }
 
-    // multi-node scenario not supported, fallback
-    done = false;
-    return ccl::event();
+    return alltoall_sycl_multi_node(
+        q, send_buf, recv_buf, count, dtype, comm, op_stream, deps, done);
 }
 
 } // namespace v1

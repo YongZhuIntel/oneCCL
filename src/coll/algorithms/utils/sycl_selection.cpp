@@ -548,3 +548,33 @@ size_t allgatherv_select_chunk_size(allgatherv_scaleout_algo algo, size_t size, 
     // error protection
     return std::min(auto_pipeline_chunk_size, max_pipeline_chunk_size);
 }
+
+// alltoall
+static sycl_alltoall_tune_attr alltoall_auto_select_tune_attr(size_t size,
+                                                              size_t comm_size,
+                                                              ccl_datatype ccl_dtype) {
+    if (ccl::global_data::env().sycl_enable_direct_gpu_rdma) {
+        return { alltoall_scaleout_algo::pairwise };
+    }
+
+    if (ccl::global_data::env().atl_transport != ccl_atl_ofi) {
+        return { alltoall_scaleout_algo::direct };
+    }
+
+    return { alltoall_scaleout_algo::fallback };
+}
+
+sycl_alltoall_tune_attr alltoall_select_tune_attr(size_t size,
+                                                  size_t comm_size,
+                                                  ccl_datatype ccl_dtype) {
+    if (ccl::global_data::env().sycl_alltoall_scaleout_algo == "auto") {
+        return alltoall_auto_select_tune_attr(size, comm_size, ccl_dtype);
+    }
+    if (ccl::global_data::env().sycl_alltoall_scaleout_algo == "direct") {
+        return { alltoall_scaleout_algo::direct };
+    }
+    if (ccl::global_data::env().sycl_alltoall_scaleout_algo == "pairwise") {
+        return { alltoall_scaleout_algo::pairwise };
+    }
+    CCL_THROW("unsupported selection");
+}

@@ -234,6 +234,7 @@ public:
     bool sycl_enable_arc_allreduce;
     size_t sycl_allreduce_ll_threshold;
 
+    std::string sycl_alltoall_scaleout_algo;
     bool sycl_enable_arc_alltoall_ll;
     bool sycl_enable_arc_alltoall_ll_sync;
     size_t sycl_alltoall_ll_chunk_threshold;

@@ -198,6 +198,7 @@ env_data::env_data()
           sycl_allgatherv_scaleout_algo("auto"),
           sycl_allgatherv_chunking_threshold(0),
 
+          sycl_alltoall_scaleout_algo("auto"),
 	  sycl_enable_arc_alltoall_ll(0),
 	  sycl_enable_arc_alltoall_ll_sync(0),
 	  sycl_alltoall_ll_chunk_threshold(0),
@@ -561,6 +562,7 @@ void env_data::parse() {
     p.env_2_type(CCL_SYCL_ALLGATHERV_SCALEOUT, sycl_allgatherv_scaleout_algo);
     p.env_2_type(CCL_SYCL_ALLGATHERV_CHUNKING_THRESHOLD, sycl_allgatherv_chunking_threshold);
 
+    p.env_2_type(CCL_SYCL_ALLTOALL_SCALEOUT, sycl_alltoall_scaleout_algo);
     p.env_2_type(CCL_SYCL_ALLTOALL_ARC_LL, sycl_enable_arc_alltoall_ll);
     p.env_2_type(CCL_SYCL_ALLTOALL_ARC_LL_SYNC, sycl_enable_arc_alltoall_ll_sync);
     p.env_2_type(CCL_SYCL_ALLTOALL_LL_CHUNK_THRESHOLD, sycl_alltoall_ll_chunk_threshold);
@@ -1015,6 +1017,7 @@ void env_data::print(int rank, bool is_mt_enabled) {
     LOG_INFO(CCL_SYCL_ALLGATHERV_SCALEOUT, ": ", (!sycl_allgatherv_scaleout_algo.empty()) ? sycl_allgatherv_scaleout_algo : CCL_ENV_STR_NOT_SPECIFIED);
     LOG_INFO(CCL_SYCL_ALLGATHERV_CHUNKING_THRESHOLD, ": ", sycl_allgatherv_chunking_threshold);
 
+    LOG_INFO(CCL_SYCL_ALLTOALL_SCALEOUT, ": ", (!sycl_alltoall_scaleout_algo.empty()) ? sycl_alltoall_scaleout_algo : CCL_ENV_STR_NOT_SPECIFIED);
     LOG_INFO(CCL_SYCL_ALLTOALL_ARC_LL, ": ", sycl_enable_arc_alltoall_ll);
     LOG_INFO(CCL_SYCL_ALLTOALL_ARC_LL_SYNC, ": ", sycl_enable_arc_alltoall_ll_sync);
     LOG_INFO(CCL_SYCL_ALLTOALL_LL_CHUNK_THRESHOLD, ": ", sycl_alltoall_ll_chunk_threshold);
