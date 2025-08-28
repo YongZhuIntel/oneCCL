@@ -14,6 +14,7 @@
  limitations under the License.
 */
 #include "coll/algorithms/alltoall/sycl/alltoall_sycl.hpp"
+#include "coll/algorithms/alltoall/sycl/alltoall_ll256.hpp"
 
 namespace ccl {
 namespace v1 {
@@ -99,6 +100,21 @@ ccl::event alltoall_sycl(sycl::queue& q,
     }
 
     if (is_single_node) {
+
+	if (is_arc_card(ccl::ze::get_device_family(op_stream->get_ze_device())) &&
+                        ccl::global_data::env().sycl_enable_arc_alltoall_ll) {
+            ccl::event e;
+            uint32_t world = comm->get_node_comm()->size();
+	    size_t dt_sz = ccl::global_data::get().dtypes->get(dtype).size();
+            if (((count * dt_sz) % LS_SZ == 0) && ((world & (world-1)) == 0)) {
+                done = true;
+                e = arc_alltoall(send_buf, recv_buf, count, dtype, comm,op_stream);
+            } else {
+                done = false;
+            }
+	    return e;
+        }
+
         if (send_buf != recv_buf) {
             LOG_DEBUG("is_single_node");
             return alltoall_sycl_single_node(
