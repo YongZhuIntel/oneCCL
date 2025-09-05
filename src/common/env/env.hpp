@@ -249,6 +249,7 @@ public:
     size_t sycl_allgatherv_chunking_threshold;
 
     bool sycl_enable_arc_alltoall_ll;
+    size_t sycl_alltoall_ll_chunk_threshold;
 
     bool enable_sycl_kernels;
 
