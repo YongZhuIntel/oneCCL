@@ -234,7 +234,7 @@ public:
     size_t sycl_allreduce_ll_threshold;
 
     bool sycl_enable_arc_alltoall_ll;
-    
+
     bool sycl_reduce_scatter_tmp_buf;
     size_t sycl_reduce_scatter_small_threshold;
     size_t sycl_reduce_scatter_medium_threshold;
