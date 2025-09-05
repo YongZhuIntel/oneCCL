@@ -131,181 +131,192 @@ sycl::event arc_ll256_alltoall(const void *src,
     /* To avoid pattern not changed when "iters" is 1 */
     pattern_t pattern_prefix = ++pattern_counter << 16;
 
-    sycl_e = q.submit([&](auto &h) {
-        //using namespace sycl::ext::intel::experimental::esimd;
+    const int chunk_size = ccl::global_data::env().sycl_alltoall_ll_chunk_threshold;
+    size_t max_submit_count = chunk_size / dt_sz;
+    if (chunk_size == 0 || count * ccl_dtype.size() <= chunk_size) {
+        max_submit_count = count;
+    }
+    size_t submit_loop = (count  + max_submit_count - 1) / max_submit_count;
 
-        int local_world_rank = comm_rank;
-        int local_world_size = comm_size;
+    for (int i_s = 0;i_s < submit_loop;i_s++) {
+        sycl_e = q.submit([&](auto &h) {
+            //using namespace sycl::ext::intel::experimental::esimd;
 
-        int next_rank = (local_world_rank + 1) % local_world_size;
+            int local_world_rank = comm_rank;
+            int local_world_size = comm_size;
 
-        char *local_peer_bufs[ARC_MAX_NUM];
+            int next_rank = (local_world_rank + 1) % local_world_size;
 
-        // use large kernel persistent buffers
-        for (int i = 0; i < local_world_size; i++) {
-            local_peer_bufs[i] = (char *)get_remote_node_tmp_buf(0, comm)[i];
-        }
-        //char *local_tmp_buf = local_peer_bufs[local_world_rank];
-        char *local_tmp_buf = (char *)get_tmp_buf(0, comm);
+            char *local_peer_bufs[ARC_MAX_NUM];
 
-        /*
-         * In a single subgroup:
-         *   a> 1 dedicated work-item to manage a LS_SZ-byte pattern.
-         *   b> other work-items to process data, and each of them handle a LS_SZ-byte data.
-         */
-        auto default_subgroup_capacity =
+            // use large kernel persistent buffers
+            for (int i = 0; i < local_world_size; i++) {
+                local_peer_bufs[i] = (char *)get_remote_node_tmp_buf(0, comm)[i];
+            }
+            //char *local_tmp_buf = local_peer_bufs[local_world_rank];
+            char *local_tmp_buf = (char *)get_tmp_buf(0, comm);
+
+            /*
+             * In a single subgroup:
+             *   a> 1 dedicated work-item to manage a LS_SZ-byte pattern.
+             *   b> other work-items to process data, and each of them handle a LS_SZ-byte data.
+             */
+            auto default_subgroup_capacity =
             sg_sz * LS_SZ; /* bytes: data and pattern  processed by 1 subgroup */
-        auto default_workgroup_capacity =
-            l_sz * LS_SZ; /* bytes: data and patterns processed by 1 workgroup */
-        //auto default_total_capacity = g_sz * LS_SZ;      /* bytes: data and patterns processed by all workgroups in 1 iteration */
+            auto default_workgroup_capacity =
+                            l_sz * LS_SZ; /* bytes: data and patterns processed by 1 workgroup */
+            //auto default_total_capacity = g_sz * LS_SZ;      /* bytes: data and patterns processed by all workgroups in 1 iteration */
 
-        /* In a single workgroup, the available work-items to process data, excluding work-items for patterns */
-        auto workgroup_available_items = l_sz - (l_sz / sg_sz);
+            /* In a single workgroup, the available work-items to process data, excluding work-items for patterns */
+            auto workgroup_available_items = l_sz - (l_sz / sg_sz);
 
-        auto subgroup_capacity = LS_SZ * (sg_sz - 1); /* bytes: data processed by 1 subgroup */
-        // bytes: data processed by 1 workgroup
-        auto workgroup_capacity = LS_SZ * workgroup_available_items;
+            auto subgroup_capacity = LS_SZ * (sg_sz - 1); /* bytes: data processed by 1 subgroup */
+            // bytes: data processed by 1 workgroup
+            auto workgroup_capacity = LS_SZ * workgroup_available_items;
 
-        // calculate how many total threads to dispatch
-        size_t bytes_per_rank =
-            count * dt_sz; //(count * dt_sz + local_world_size - 1) / local_world_size;
-        ngroups = (bytes_per_rank + subgroup_capacity - 1) / subgroup_capacity;
-        g_sz = ngroups * l_sz;
-        if (g_sz > max_threads) {
-            ngroups = max_threads / l_sz;
+            // calculate how many total threads to dispatch
+            size_t bytes_per_rank = count * dt_sz;//(count * dt_sz + local_world_size - 1) / local_world_size;
+            ngroups = (bytes_per_rank + subgroup_capacity - 1) / subgroup_capacity;
             g_sz = ngroups * l_sz;
-        }
 
-        auto total_available_items = ngroups * workgroup_available_items;
-        // bytes: data processed by all workgroups in 1 iteration
-        auto total_capacity = ngroups * workgroup_capacity;
+            if (g_sz > max_threads) {
+                ngroups = max_threads / l_sz;
+                g_sz = ngroups * l_sz;
+            }
 
-        /* div up */
-        int iters =
-            (count * dt_sz + (total_available_items * LS_SZ - 1)) / (total_available_items * LS_SZ);
+            auto total_available_items = ngroups * workgroup_available_items;
+            // bytes: data processed by all workgroups in 1 iteration
+            auto total_capacity = ngroups * workgroup_capacity;
+            
+            size_t submit_count = max_submit_count;
+            if (i_s == (submit_loop -1) && (count % max_submit_count != 0) )
+                    submit_count = count % max_submit_count;
 
-        size_t alltoall_loop_buf_offset = ccl::global_data::env().sycl_tmp_buf_size / 2;
+            /* div up */
+            int iters = (submit_count * dt_sz + ( total_available_items * LS_SZ - 1)) /
+                    ( total_available_items * LS_SZ);
 
-        h.parallel_for(
-            sycl::nd_range<1>(g_sz, l_sz),
-            [=](sycl::nd_item<1> item) [[sycl::reqd_sub_group_size(SG_SZ)]] {
-                int idx = 0;
-                size_t offset = 0;
-                size_t offset_with_pattern = 0;
+            size_t alltoall_loop_buf_offset = ccl::global_data::env().sycl_tmp_buf_size / 2;
 
-                auto group_id = item.get_group_linear_id();
-                //auto sg = sycl::ext::oneapi::this_work_item::get_sub_group();
-                auto sg = item.get_sub_group();
-                auto sg_id = sg.get_group_id()[0];
-                auto sg_lid = sg.get_local_id()[0];
 
-                for (int i = 0; i < iters; i++) {
-                    // base offsets of the current subgroup
-                    auto base = (i * total_capacity + group_id * workgroup_capacity +
-                                 sg_id * subgroup_capacity);
-                    auto base_with_pattern =
-                        (group_id * default_workgroup_capacity + sg_id * default_subgroup_capacity);
+            h.parallel_for(
+                sycl::nd_range<1>(g_sz, l_sz),
+                [=](sycl::nd_item<1> item) [[sycl::reqd_sub_group_size(SG_SZ)]] {
+                    int idx = 0;
+                    size_t offset = 0;
+                    size_t offset_with_pattern = 0;
 
-                    auto finished = i * total_capacity; /* bytes */
-                    auto unreduced = count * dt_sz - finished; /* bytes */
+                    auto group_id = item.get_group_linear_id();
+                    //auto sg = sycl::ext::oneapi::this_work_item::get_sub_group();
+                    auto sg = item.get_sub_group();
+                    auto sg_id = sg.get_group_id()[0];
+                    auto sg_lid = sg.get_local_id()[0];
 
-                    // required work-items exclude 1 work-item for pattern
-                    auto req_workitems = sg_sz - 1;
-                    // LS_SZ bytes per work-item
-                    auto chunk_sz = req_workitems * LS_SZ;
-                    // aligned to 256B
-                    auto chunk_with_pattern = sg_sz * LS_SZ;
+                    for (int i = 0; i < iters; i++) {
 
-                    /* items will be assigned to each rank */
-                    auto per_rank_items = (unreduced + (LS_SZ - 1)) / (LS_SZ);
-                    auto req_workgroups = (per_rank_items + (workgroup_available_items - 1)) /
-                                          workgroup_available_items;
-                    auto req_subgroups = 0;
+                        // base offsets of the current subgroup
+                        auto base = i_s * max_submit_count * dt_sz +
+                                (i * total_capacity + group_id * workgroup_capacity +
+                                        sg_id * subgroup_capacity);
+                        auto base_with_pattern =
+                                (group_id * default_workgroup_capacity + sg_id * default_subgroup_capacity);
 
-                    if (req_workgroups >= ngroups) {
-                        req_workgroups = ngroups;
-                    }
-                    else {
-                        if (group_id == (req_workgroups - 1)) {
-                            req_subgroups = (per_rank_items + (sg_sz - 1)) / (sg_sz - 1);
+                        auto finished = i * total_capacity ; /* bytes */
+                        auto unreduced = submit_count * dt_sz - finished; /* bytes */
 
-                            /* (req_subgroups % (l_sz/sg_sz) - 1) equals to the final subgroup id in a workgroup */
-                            /* Note:  req_subgroups % (l_sz/sg_sz) might be 0 */
-                            if (((req_subgroups % (l_sz / sg_sz)) == 0) ||
-                                (sg_id == (req_subgroups % (l_sz / sg_sz) - 1))) {
-                                if ((per_rank_items % (sg_sz - 1)) != 0) {
-                                    /* FIXME: */
-                                    req_workitems = per_rank_items % (sg_sz - 1);
-                                    // LS_SZ bytes per work-item
-                                    chunk_sz = req_workitems * LS_SZ;
-                                }
-                            }
+                        // required work-items exclude 1 work-item for pattern
+                        auto req_workitems = sg_sz - 1;
+                        // LS_SZ bytes per work-item
+                        auto chunk_sz = req_workitems * LS_SZ;
+                        // aligned to 256B
+                        auto chunk_with_pattern = sg_sz * LS_SZ;
+
+                        /* items will be assigned to each rank */
+                        auto per_rank_items =
+                                    (unreduced + ( LS_SZ - 1)) / ( LS_SZ);
+                        auto req_workgroups = (per_rank_items + (workgroup_available_items - 1)) /
+                                                workgroup_available_items;
+                        auto req_subgroups = 0;
+
+                        if (req_workgroups >= ngroups) {
+                                req_workgroups = ngroups;
                         }
-                    }
+                        else {
+                            if (group_id == (req_workgroups - 1)) {
+                                req_subgroups = (per_rank_items + (sg_sz - 1)) / (sg_sz - 1);
 
-                    /*
-//                if ((group_id < req_workgroups) && (sg_lid < req_workitems)) {
-                    sycl::ext::oneapi::experimental::printf(
-                        "rank: %d, i: %d, base: %d, grp id: %d, sg_lid: %d, unreduced: %d, req_workgroups: %d, req_items: %d,
-                         chunk_sz: %d, req_subgroups: %d, per_rank_items:local_world_rank, i, base, group_id, sg_lid,
-                         unreduced, req_workgroups, req_workitems, chunk_sz, req_subgroups, per_rank_items,ngroups);
-                  }
-*/
+                                /* (req_subgroups % (l_sz/sg_sz) - 1) equals to the final subgroup id in a workgroup */
+                                /* Note:  req_subgroups % (l_sz/sg_sz) might be 0 */
+                                if (((req_subgroups % (l_sz / sg_sz)) == 0) ||
+                                    (sg_id == (req_subgroups % (l_sz / sg_sz) - 1))) {
+                                    if ((per_rank_items % (sg_sz - 1)) != 0) {
+                                        /* FIXME: */
+                                        req_workitems = per_rank_items % (sg_sz - 1);
+                                        // LS_SZ bytes per work-item
+                                        chunk_sz = req_workitems * LS_SZ;
+                                    }
+                                }   
+                            }   
+                        }
+                    
+        /*
+                    //if ((group_id < req_workgroups) && (sg_lid < req_workitems)) {
+                        sycl::ext::oneapi::experimental::printf(
+                            "rank: %d, i: %d, base: %d, grp id: %d, sg_lid: %d, unreduced: %d, req_workgroups: %d, req_items: %d,
+                            chunk_sz: %d, req_subgroups: %d, per_rank_items:local_world_rank, i, base, group_id, sg_lid,
+                            unreduced, req_workgroups, req_workitems, chunk_sz, req_subgroups, per_rank_items,ngroups);
+                        }
+        */
 
-                    if (group_id < req_workgroups) {
-                        for (int k = 1; k < local_world_size; k++) {
-                            pattern_t pattern = pattern_prefix + (i << 8) + k;
+                       if (group_id < req_workgroups) {
+                                for (int k = 1; k < local_world_size; k++) {
+                                pattern_t pattern = pattern_prefix + (i<<8) + k;
 
-                            int next_rank = local_world_rank ^ k;
-                            char *next = local_peer_bufs[next_rank];
+                                int next_rank = local_world_rank ^ k;
+                                char *next = local_peer_bufs[next_rank];
 
                             // step 1: send data to dest GPU
                             {
-                                offset = base + next_rank * count * dt_sz;
-                                offset_with_pattern = base_with_pattern;
-
+                                offset = base + next_rank*count*dt_sz ;
+                                offset_with_pattern =
+                                            base_with_pattern;
                                 if (i % 2 != 0)
-                                    offset_with_pattern += alltoall_loop_buf_offset;
+                                        offset_with_pattern += alltoall_loop_buf_offset;
 
-                                offset_with_pattern +=
-                                    (k - 1) * alltoall_loop_buf_offset / local_world_size;
+                                offset_with_pattern += (k-1) * alltoall_loop_buf_offset /local_world_size ;
 
                                 size_t left_size = count * dt_sz - base;
                                 alltoall_ll256_send(send_buf + offset + sg_lid * LS_SZ,
-                                                    next + offset_with_pattern + sg_lid * LS_SZ,
-                                                    sg_lid * LS_SZ < left_size,
-                                                    pattern,
-                                                    sg_lid,
-                                                    left_size);
+                                            next + offset_with_pattern + sg_lid * LS_SZ,
+                                            sg_lid * LS_SZ < left_size,
+                                            pattern,sg_lid,left_size);
                             }
+
 
                             // step 2:recv data from dest
                             {
-                                offset = base + next_rank * count * dt_sz;
+                                offset = base + next_rank*count*dt_sz;
                                 offset_with_pattern = base_with_pattern;
 
                                 if (i % 2 != 0)
-                                    offset_with_pattern += alltoall_loop_buf_offset;
+                                     offset_with_pattern += alltoall_loop_buf_offset;
 
-                                offset_with_pattern +=
-                                    (k - 1) * alltoall_loop_buf_offset / local_world_size;
+                                offset_with_pattern += (k-1) * alltoall_loop_buf_offset /local_world_size;
 
                                 size_t left_size = count * dt_sz - base;
-                                alltoall_ll256_recv(
-                                    recv_buf + offset + sg_lid * LS_SZ,
-                                    local_tmp_buf + offset_with_pattern + sg_lid * LS_SZ,
-                                    sg,
-                                    sg_lid,
-                                    req_workitems,
-                                    pattern,
-                                    left_size);
+                                alltoall_ll256_recv(recv_buf + offset + sg_lid * LS_SZ,
+                                            local_tmp_buf  + offset_with_pattern + sg_lid * LS_SZ,
+                                            sg,
+                                            sg_lid,
+                                            req_workitems,
+                                            pattern,left_size);
                             }
                         }
                     }
                 }
             });
-    });
-
+        });
+    }
     return sycl_e;
 }
 

@@ -199,6 +199,7 @@ env_data::env_data()
           sycl_allgatherv_chunking_threshold(0),
 
           sycl_enable_arc_alltoall_ll(0),
+          sycl_alltoall_ll_chunk_threshold(0),
 
           enable_sycl_kernels(1),
 
@@ -562,6 +563,7 @@ void env_data::parse() {
     p.env_2_type(CCL_SYCL_ALLGATHERV_CHUNKING_THRESHOLD, sycl_allgatherv_chunking_threshold);
 
     p.env_2_type(CCL_SYCL_ALLTOALL_ARC_LL, sycl_enable_arc_alltoall_ll);
+    p.env_2_type(CCL_SYCL_ALLTOALL_LL_CHUNK_THRESHOLD, sycl_alltoall_ll_chunk_threshold);
 
     p.env_2_type(CCL_ENABLE_SYCL_KERNELS, enable_sycl_kernels);
 
@@ -1016,6 +1018,7 @@ void env_data::print(int rank, bool is_mt_enabled) {
     LOG_INFO(CCL_SYCL_ALLGATHERV_CHUNKING_THRESHOLD, ": ", sycl_allgatherv_chunking_threshold);
 
     LOG_INFO(CCL_SYCL_ALLTOALL_ARC_LL, ": ", sycl_enable_arc_alltoall_ll);
+    LOG_INFO(CCL_SYCL_ALLTOALL_LL_CHUNK_THRESHOLD, ": ", sycl_alltoall_ll_chunk_threshold);
 
     LOG_INFO(CCL_ENABLE_SYCL_KERNELS, ": ", enable_sycl_kernels);
 
