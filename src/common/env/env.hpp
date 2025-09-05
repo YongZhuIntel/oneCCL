@@ -144,6 +144,7 @@ public:
     std::string mnic_name_raw;
     ssize_t mnic_count;
     atl_mnic_offset_t mnic_offset;
+    std::string ofi_domain_names;
 
     /*
        parsing logic can be quite complex
@@ -232,6 +233,12 @@ public:
     std::string sycl_allreduce_scaleout_algo;
     bool sycl_enable_arc_allreduce;
     size_t sycl_allreduce_ll_threshold;
+    size_t sycl_allreduce_chunking_threshold;
+
+    std::string sycl_alltoall_scaleout_algo;
+    bool sycl_enable_arc_alltoall_ll;
+    bool sycl_enable_arc_alltoall_ll_sync;
+    size_t sycl_alltoall_ll_chunk_threshold;
 
     bool sycl_reduce_scatter_tmp_buf;
     size_t sycl_reduce_scatter_small_threshold;
@@ -245,6 +252,8 @@ public:
     size_t sycl_allgatherv_medium_threshold;
     size_t sycl_allgatherv_scaleout_threshold;
     size_t sycl_allgatherv_ll_threshold;
+    std::string sycl_allgatherv_scaleout_algo;
+    size_t sycl_allgatherv_chunking_threshold;
 
     bool enable_sycl_kernels;
 

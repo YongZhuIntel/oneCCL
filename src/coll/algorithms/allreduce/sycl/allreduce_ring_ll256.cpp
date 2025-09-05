@@ -185,7 +185,7 @@ sycl::event arc_ll256_allreduce(const void *src,
 
         int next_rank = (local_world_rank + 1) % local_world_size;
 
-        char *local_peer_bufs[ARC_NUM];
+        char *local_peer_bufs[ARC_MAX_NUM];
 #if 0
         auto [local_tmp_buf, remote_ptrs] = node_comm->get_all_tmp_bufs(true);
         for (int i = 0; i < local_world_size; i++) {

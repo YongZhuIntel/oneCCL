@@ -116,6 +116,7 @@ env_data::env_data()
           mnic_type(ATL_MNIC_NONE),
           mnic_count(CCL_ENV_SIZET_NOT_SPECIFIED),
           mnic_offset(ATL_MNIC_OFFSET_NONE),
+          ofi_domain_names(CCL_ENV_STR_NOT_SPECIFIED),
 
           enable_algo_fallback(1),
           enable_unordered_coll(0),
@@ -181,6 +182,7 @@ env_data::env_data()
           sycl_allreduce_scaleout_algo("auto"),
           sycl_enable_arc_allreduce(0),
           sycl_allreduce_ll_threshold(4096),
+          sycl_allreduce_chunking_threshold(0),
 
           sycl_reduce_scatter_tmp_buf(0),
           sycl_reduce_scatter_small_threshold(2097152),
@@ -192,12 +194,19 @@ env_data::env_data()
           sycl_allgatherv_tmp_buf(0),
           sycl_allgatherv_small_threshold(131072),
           sycl_allgatherv_medium_threshold(2097152),
-          sycl_allgatherv_scaleout_threshold(1048576),
+          sycl_allgatherv_scaleout_threshold(4294967296),
           sycl_allgatherv_ll_threshold(2048),
+          sycl_allgatherv_scaleout_algo("auto"),
+          sycl_allgatherv_chunking_threshold(0),
+
+          sycl_alltoall_scaleout_algo("auto"),
+	  sycl_enable_arc_alltoall_ll(0),
+	  sycl_enable_arc_alltoall_ll_sync(0),
+	  sycl_alltoall_ll_chunk_threshold(0),
 
           enable_sycl_kernels(1),
 
-          sycl_ccl_barrier(0),
+          sycl_ccl_barrier(1),
           sycl_kernel_sync(1),
           sycl_single_node_algorithm(1),
           sycl_auto_use_tmp_buf(1),
@@ -427,6 +436,7 @@ void env_data::parse() {
         mnic_count = worker_count;
     }
     p.env_2_enum(CCL_MNIC_OFFSET, mnic_offset_names, mnic_offset);
+    p.env_2_type(CCL_OFI_DOMAIN_NAMES, ofi_domain_names);
 
     p.env_2_type(CCL_ALGO_FALLBACK, enable_algo_fallback);
     // main algorithm selection
@@ -537,6 +547,7 @@ void env_data::parse() {
     p.env_2_type(CCL_SYCL_ALLREDUCE_SCALEOUT, sycl_allreduce_scaleout_algo);
     p.env_2_type(CCL_SYCL_ALLREDUCE_ARC, sycl_enable_arc_allreduce);
     p.env_2_type(CCL_SYCL_ALLREDUCE_LL_THRESHOLD, sycl_allreduce_ll_threshold);
+    p.env_2_type(CCL_SYCL_ALLREDUCE_CHUNKING_THRESHOLD, sycl_allreduce_chunking_threshold);
 
     p.env_2_type(CCL_SYCL_REDUCE_SCATTER_TMP_BUF, sycl_reduce_scatter_tmp_buf);
     p.env_2_type(CCL_SYCL_REDUCE_SCATTER_SMALL_THRESHOLD, sycl_reduce_scatter_small_threshold);
@@ -550,6 +561,13 @@ void env_data::parse() {
     p.env_2_type(CCL_SYCL_ALLGATHERV_MEDIUM_THRESHOLD, sycl_allgatherv_medium_threshold);
     p.env_2_type(CCL_SYCL_ALLGATHERV_SCALEOUT_THRESHOLD, sycl_allgatherv_scaleout_threshold);
     p.env_2_type(CCL_SYCL_ALLGATHERV_LL_THRESHOLD, sycl_allgatherv_ll_threshold);
+    p.env_2_type(CCL_SYCL_ALLGATHERV_SCALEOUT, sycl_allgatherv_scaleout_algo);
+    p.env_2_type(CCL_SYCL_ALLGATHERV_CHUNKING_THRESHOLD, sycl_allgatherv_chunking_threshold);
+
+    p.env_2_type(CCL_SYCL_ALLTOALL_SCALEOUT, sycl_alltoall_scaleout_algo);
+    p.env_2_type(CCL_SYCL_ALLTOALL_ARC_LL, sycl_enable_arc_alltoall_ll);
+    p.env_2_type(CCL_SYCL_ALLTOALL_ARC_LL_SYNC, sycl_enable_arc_alltoall_ll_sync);
+    p.env_2_type(CCL_SYCL_ALLTOALL_LL_CHUNK_THRESHOLD, sycl_alltoall_ll_chunk_threshold);
 
     p.env_2_type(CCL_ENABLE_SYCL_KERNELS, enable_sycl_kernels);
 
@@ -866,6 +884,7 @@ void env_data::print(int rank, bool is_mt_enabled) {
         CCL_MNIC_NAME, ": ", (mnic_name_raw.length()) ? mnic_name_raw : CCL_ENV_STR_NOT_SPECIFIED);
     LOG_INFO(CCL_MNIC_COUNT, ": ", mnic_count);
     LOG_INFO(CCL_MNIC_OFFSET, ": ", str_by_enum(mnic_offset_names, mnic_offset));
+    LOG_INFO(CCL_OFI_DOMAIN_NAMES, ": ", (ofi_domain_names.length()) ? ofi_domain_names : CCL_ENV_STR_NOT_SPECIFIED);
 
     LOG_INFO(CCL_ALGO_FALLBACK, ": ", enable_algo_fallback);
     LOG_INFO(CCL_ALLGATHER,
@@ -984,6 +1003,7 @@ void env_data::print(int rank, bool is_mt_enabled) {
     LOG_INFO(CCL_SYCL_ALLREDUCE_SCALEOUT, ": ", (!sycl_allreduce_scaleout_algo.empty()) ? sycl_allreduce_scaleout_algo : CCL_ENV_STR_NOT_SPECIFIED);
     LOG_INFO(CCL_SYCL_ALLREDUCE_ARC, ": ", sycl_enable_arc_allreduce);
     LOG_INFO(CCL_SYCL_ALLREDUCE_LL_THRESHOLD, ": ", sycl_allreduce_ll_threshold);
+    LOG_INFO(CCL_SYCL_ALLREDUCE_CHUNKING_THRESHOLD, ": ", sycl_allreduce_chunking_threshold);
 
     LOG_INFO(CCL_SYCL_REDUCE_SCATTER_TMP_BUF, ": ", sycl_reduce_scatter_tmp_buf);
     LOG_INFO(CCL_SYCL_REDUCE_SCATTER_SMALL_THRESHOLD, ": ", sycl_reduce_scatter_small_threshold);
@@ -997,6 +1017,13 @@ void env_data::print(int rank, bool is_mt_enabled) {
     LOG_INFO(CCL_SYCL_ALLGATHERV_MEDIUM_THRESHOLD, ": ", sycl_allgatherv_medium_threshold);
     LOG_INFO(CCL_SYCL_ALLGATHERV_SCALEOUT_THRESHOLD, ": ", sycl_allgatherv_scaleout_threshold);
     LOG_INFO(CCL_SYCL_ALLGATHERV_LL_THRESHOLD, ": ", sycl_allgatherv_ll_threshold);
+    LOG_INFO(CCL_SYCL_ALLGATHERV_SCALEOUT, ": ", (!sycl_allgatherv_scaleout_algo.empty()) ? sycl_allgatherv_scaleout_algo : CCL_ENV_STR_NOT_SPECIFIED);
+    LOG_INFO(CCL_SYCL_ALLGATHERV_CHUNKING_THRESHOLD, ": ", sycl_allgatherv_chunking_threshold);
+
+    LOG_INFO(CCL_SYCL_ALLTOALL_SCALEOUT, ": ", (!sycl_alltoall_scaleout_algo.empty()) ? sycl_alltoall_scaleout_algo : CCL_ENV_STR_NOT_SPECIFIED);
+    LOG_INFO(CCL_SYCL_ALLTOALL_ARC_LL, ": ", sycl_enable_arc_alltoall_ll);
+    LOG_INFO(CCL_SYCL_ALLTOALL_ARC_LL_SYNC, ": ", sycl_enable_arc_alltoall_ll_sync);
+    LOG_INFO(CCL_SYCL_ALLTOALL_LL_CHUNK_THRESHOLD, ": ", sycl_alltoall_ll_chunk_threshold);
 
     LOG_INFO(CCL_ENABLE_SYCL_KERNELS, ": ", enable_sycl_kernels);
 

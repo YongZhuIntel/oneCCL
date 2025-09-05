@@ -36,7 +36,7 @@ static inline void sbarrier_wait_compat(bool p2p) {
 #endif
 }
 
-template <typename T, int NRanks, template <typename, int> class Proto, int SubGroupSize = 16>
+template <typename T, template <typename, int> class Proto, int SubGroupSize = 16>
 class RingTransmit : public Proto<T, SubGroupSize> {
 protected:
     static constexpr int parallel_sg = 1;
@@ -71,7 +71,8 @@ public:
     typedef T (*ringPtr)[nSlot][maxLaunch][wireTransElems];
 
 public:
-    RingTransmit(T* input,
+    RingTransmit(int nranks,
+                 T* input,
                  T* scatterBuf,
                  T* gatherBuf,
                  T* const peerBuf0[],
@@ -80,13 +81,15 @@ public:
                  int rank,
                  uint32_t seqNo, // Serve as flag for checking
                  bool p2p)
-            : workElems(workSize / sizeof(T)),
+            : nRanks(nranks),
+              workElems(workSize / sizeof(T)),
               rank(rank),
               seqNo(seqNo),
               p2p(p2p) {
-        auto next = (rank + 1) % NRanks;
+        auto next = (rank + 1) % nRanks;
         ingress = input;
         egress = input;
+        has_offsets = false;
 
         scatterSink = reinterpret_cast<ringPtr>((uintptr_t)peerBuf0[next]);
         gatherSink = reinterpret_cast<ringPtr>((uintptr_t)peerBuf1[next]);
@@ -95,8 +98,10 @@ public:
         localGatherSink = reinterpret_cast<ringPtr>((uintptr_t)gatherBuf);
     }
 
-    RingTransmit(T* input,
+    RingTransmit(int nranks,
+		 T* input,
                  T* output,
+                 const size_t *offs,
                  T* scatterBuf,
                  T* gatherBuf,
                  T* const peerBuf0[],
@@ -105,13 +110,21 @@ public:
                  int rank,
                  uint32_t seqNo, // Serve as flag for checking
                  bool p2p)
-            : workElems(workSize / sizeof(T)),
+            : nRanks(nranks),
+              workElems(workSize / sizeof(T)),
               rank(rank),
               seqNo(seqNo),
               p2p(p2p) {
-        auto next = (rank + 1) % NRanks;
+        auto next = (rank + 1) % nRanks;
         ingress = input;
         egress = output;
+
+        has_offsets = false;
+        if (offs) {
+            has_offsets = true;
+            for (int i = 0; i < nRanks; i++)
+                offsets[i] = offs[i];
+        }
 
         scatterSink = reinterpret_cast<ringPtr>((uintptr_t)peerBuf0[next]);
         gatherSink = reinterpret_cast<ringPtr>((uintptr_t)peerBuf1[next]);
@@ -222,7 +235,11 @@ public:
 
         restoreData(v);
 
-        auto* ptr = egress + peer * workElems + offset;
+        auto* ptr = egress + offset;
+        if (has_offsets)
+            ptr = (T *)((char *)ptr + offsets[peer]);
+        else
+            ptr = ptr + peer * workElems;
         storeOutput(ptr, v, nelems);
     }
 
@@ -243,7 +260,11 @@ public:
 
         restoreData(v);
 
-        auto* ptr = egress + peer * workElems + offset;
+        auto* ptr = egress + offset;
+        if (has_offsets)
+            ptr = (T *)((char *)ptr + offsets[peer]);
+        else
+            ptr = ptr + peer * workElems;
         storeOutput(ptr, v, nelems);
     }
 
@@ -279,13 +300,13 @@ public:
     inline void runAllreduce(size_t inputOffset, size_t tStep, ssize_t workLeft) {
         if (workLeft <= 0) {
             sbarrier_signal_compat(p2p);
-            for (uint32_t i = 1; i < NRanks - 1; ++i) {
+            for (uint32_t i = 1; i < nRanks - 1; ++i) {
                 sbarrier_wait_compat(p2p);
                 sbarrier_signal_compat(p2p);
             }
             sbarrier_wait_compat(p2p);
             sbarrier_signal_compat(p2p);
-            for (uint32_t i = 1; i < NRanks - 1; ++i) {
+            for (uint32_t i = 1; i < nRanks - 1; ++i) {
                 sbarrier_wait_compat(p2p);
                 sbarrier_signal_compat(p2p);
             }
@@ -302,41 +323,41 @@ public:
         auto nelems = workLeft / sizeof(T);
 
         uint32_t p_idx = 0;
-        int peer = (rank + p_idx) % NRanks;
+        int peer = (rank + p_idx) % nRanks;
 
         // Step 0
         send(wireId, peer, offset, flag, slot, nelems);
 
         // Step 1 to N-1
 #pragma unroll
-        for (int i = 1; i < NRanks - 1; ++i) {
-            p_idx = (p_idx - 1) % NRanks;
-            peer = (rank + p_idx) % NRanks;
+        for (int i = 1; i < nRanks - 1; ++i) {
+            p_idx = (p_idx + nRanks - 1) % nRanks;
+            peer = (rank + p_idx) % nRanks;
             loadRecvReduceSend(wireId, peer, offset, flag, slot, nelems);
         }
 
         // Step N
-        p_idx = (p_idx - 1) % NRanks;
-        peer = (rank + p_idx) % NRanks;
+        p_idx = (p_idx + nRanks - 1) % nRanks;
+        peer = (rank + p_idx) % nRanks;
         loadRecvReduceSendWrtback(wireId, peer, offset, flag, slot, nelems);
 
         // write back
 #pragma unroll
-        for (uint32_t i = 1; i < NRanks - 1; ++i) {
-            p_idx = (p_idx - 1) % NRanks; // 0
-            peer = (rank + p_idx) % NRanks;
+        for (uint32_t i = 1; i < nRanks - 1; ++i) {
+            p_idx = (p_idx + nRanks - 1) % nRanks; // 0
+            peer = (rank + p_idx) % nRanks;
             recvSendWrtback(wireId, peer, offset, flag, slot, nelems);
         }
 
-        p_idx = (p_idx - 1) % NRanks;
-        peer = (rank + p_idx) % NRanks;
+        p_idx = (p_idx + nRanks - 1) % nRanks;
+        peer = (rank + p_idx) % nRanks;
         recvWrtback(wireId, peer, offset, flag, slot, nelems);
     }
 
     inline void runAllgather(size_t inputOffset, size_t tStep, ssize_t workLeft) {
         if (workLeft <= 0) {
             sbarrier_signal_compat(p2p);
-            for (uint32_t i = 1; i < NRanks - 1; ++i) {
+            for (uint32_t i = 1; i < nRanks - 1; ++i) {
                 sbarrier_wait_compat(p2p);
                 sbarrier_signal_compat(p2p);
             }
@@ -355,11 +376,16 @@ public:
         message_t v;
 
         uint32_t p_idx = 0;
-        int peer = (rank + p_idx) % NRanks;
+        int peer = (rank + p_idx) % nRanks;
 
         auto* ptr = ingress + inputOffInType;
-        auto* o_ptr = egress + peer * workElems + inputOffInType;
         loadInput(v, ptr, nelems);
+
+        auto* o_ptr = egress + inputOffInType;
+        if (has_offsets)
+            o_ptr = (T *)((char *)o_ptr + offsets[peer]);
+        else
+            o_ptr = o_ptr + peer * workElems;
 
         if (ptr != o_ptr)
             storeOutput(o_ptr, v, nelems);
@@ -371,14 +397,14 @@ public:
         sbarrier_signal_compat(p2p);
 
 #pragma unroll
-        for (uint32_t i = 1; i < NRanks - 1; ++i) {
-            p_idx = (p_idx - 1) % NRanks; // 0
-            peer = (rank + p_idx) % NRanks;
+        for (uint32_t i = 1; i < nRanks - 1; ++i) {
+            p_idx = (p_idx + nRanks - 1) % nRanks; // 0
+            peer = (rank + p_idx) % nRanks;
             recvSendWrtback(wireId, peer, inputOffInType, flag, slot, nelems);
         }
 
-        p_idx = (p_idx - 1) % NRanks;
-        peer = (rank + p_idx) % NRanks;
+        p_idx = (p_idx + nRanks - 1) % nRanks;
+        peer = (rank + p_idx) % nRanks;
 
         recvWrtback(wireId, peer, inputOffInType, flag, slot, nelems);
     }
@@ -386,7 +412,7 @@ public:
     inline void runReduceScatter(size_t inputOffset, size_t tStep, ssize_t workLeft) {
         if (workLeft <= 0) {
             sbarrier_signal_compat(p2p);
-            for (uint32_t i = 1; i < NRanks - 1; ++i) {
+            for (uint32_t i = 1; i < nRanks - 1; ++i) {
                 sbarrier_wait_compat(p2p);
                 sbarrier_signal_compat(p2p);
             }
@@ -403,22 +429,22 @@ public:
         auto nelems = workLeft / sizeof(T);
 
         uint32_t p_idx = -1;
-        int peer = (rank + p_idx + NRanks) % NRanks;
+        int peer = (rank + nRanks + p_idx) % nRanks;
 
         // Step 0
         send(wireId, peer, offset, flag, slot, nelems);
 
         // Step 1 to N-1
 #pragma unroll
-        for (int i = 1; i < NRanks - 1; ++i) {
-            p_idx = (p_idx - 1) % NRanks;
-            peer = (rank + p_idx) % NRanks;
+        for (int i = 1; i < nRanks - 1; ++i) {
+            p_idx = (p_idx + nRanks - 1) % nRanks;
+            peer = (rank + p_idx) % nRanks;
             loadRecvReduceSend(wireId, peer, offset, flag, slot, nelems);
         }
 
         // Step N
-        p_idx = (p_idx - 1) % NRanks;
-        peer = (rank + p_idx) % NRanks;
+        p_idx = (p_idx + nRanks - 1) % nRanks;
+        peer = (rank + p_idx) % nRanks;
         loadRecvReduceWrtback(wireId, peer, offset, flag, slot, nelems);
     }
 
@@ -482,7 +508,10 @@ public:
 protected:
     T* ingress;
     T* egress;
+    size_t offsets[ARC_MAX_NUM];
+    bool has_offsets;
 
+    int nRanks;
     ssize_t workElems;
     int rank;
     uint32_t seqNo;

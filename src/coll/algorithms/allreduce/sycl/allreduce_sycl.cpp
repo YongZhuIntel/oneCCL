@@ -50,16 +50,17 @@ ccl::event allreduce_sycl_single_node(sycl::queue& q,
     if (world == 1) {
         sycl::event sycl_e;
         std::vector<sycl::event> dep_events = get_sycl_events(deps);
+        auto sycl_q = global_stream->get_native_stream();
         if (send_buf != recv_buf) {
             LOG_DEBUG("single rank: out-of-place case, coll: allreduce");
-            sycl_e = q.submit([=](sycl::handler& h) {
+            sycl_e = sycl_q.submit([=](sycl::handler& h) {
                 h.depends_on(dep_events);
                 h.memcpy(recv_buf, send_buf, count * ccl_dtype.size());
             });
         }
         else {
             LOG_DEBUG("single rank: inplace case, coll: allreduce");
-            sycl_e = submit_wait_on_events(q, dep_events);
+            sycl_e = submit_wait_on_events(sycl_q, dep_events);
         }
         return ccl::event::create_from_native(sycl_e);
     }
@@ -79,12 +80,37 @@ ccl::event allreduce_sycl_single_node(sycl::queue& q,
             return e;
         }
         if (!ccl::global_data::env().sycl_enable_arc_allreduce) {
-            LOG_DEBUG("invoking allreduce LL256 kernel allreduce_ll_ring, count:",
-                      count,
-                      " datatype: ",
-                      dtype);
-            e = allreduce_ll_ring(
-                send_buf, recv_buf, count, dtype, reduction, global_comm, global_stream, done);
+            const size_t chunk_size = ccl::global_data::env().sycl_allreduce_chunking_threshold;
+            size_t max_pack_count;
+            if (chunk_size == 0 || count * ccl_dtype.size() <= chunk_size) {
+                max_pack_count = count;
+            }
+            else {
+                max_pack_count = chunk_size;
+                int typesize = std::max(4, (int)ccl_dtype.size());
+                max_pack_count = max_pack_count / typesize * typesize;
+                max_pack_count = max_pack_count / ccl_dtype.size();
+                CCL_ASSERT(max_pack_count > 0);
+            }
+
+            size_t send_offset = 0;
+            int nchunks = (count + max_pack_count - 1) / max_pack_count;
+            for (int iter = 0; iter < nchunks; iter++) {
+                size_t pack_count = (iter < nchunks - 1) ? max_pack_count : count - send_offset;
+                LOG_DEBUG("invoking allreduce LL256 kernel allreduce_ll_ring, count:",
+                          pack_count,
+                          " datatype: ",
+                          dtype);
+                e = allreduce_ll_ring((char*)send_buf + send_offset * ccl_dtype.size(),
+                                      (char*)recv_buf + send_offset * ccl_dtype.size(),
+                                      pack_count,
+                                      dtype,
+                                      reduction,
+                                      global_comm,
+                                      global_stream,
+                                      done);
+                send_offset += pack_count;
+            } // end for
             if (done) {
                 LOG_DEBUG("invoking allreduce LL256 kernel, count:",
                           count,
@@ -491,7 +517,7 @@ ccl::event allreduce_sycl_multi_node(sycl::queue& q,
         if (counts_per_rank == 0 && remainder_count) {
             CCL_ASSERT(i == nchunks - 1);
             LOG_DEBUG("using CPU-side algorithm for the remainder count=", remainder_count);
-
+#if 0
             if (ccl::global_data::env().atl_transport == ccl_atl_ofi) {
                 // fallback
                 LOG_DEBUG("allreduce count size = ",
@@ -503,8 +529,12 @@ ccl::event allreduce_sycl_multi_node(sycl::queue& q,
                 done = false;
                 return ev;
             }
-
+#endif
             sycl_allreduce_tune_attr scaleout_tune_attr = { allreduce_scaleout_algo::direct };
+            if (ccl::global_data::env().atl_transport == ccl_atl_ofi) {
+                   scaleout_tune_attr.algo = allreduce_scaleout_algo::ring;
+            }
+
             ev = allreduce_scaleout_sycl(q,
                                          (char*)send_buf + displ,
                                          (char*)recv_buf + displ,

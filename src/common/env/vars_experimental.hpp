@@ -281,6 +281,7 @@ constexpr const char* CCL_SYCL_ALLREDUCE_SCALEOUT = "CCL_SYCL_ALLREDUCE_SCALEOUT
 
 constexpr const char* CCL_SYCL_ALLREDUCE_ARC = "CCL_SYCL_ALLREDUCE_ARC";
 constexpr const char* CCL_SYCL_ALLREDUCE_LL_THRESHOLD = "CCL_SYCL_ALLREDUCE_LL_THRESHOLD";
+constexpr const char* CCL_SYCL_ALLREDUCE_CHUNKING_THRESHOLD = "CCL_SYCL_ALLREDUCE_CHUNKING_THRESHOLD";
 
 /**
  * @brief Enable the use of persistent temporary buffer in reduce_scatter
@@ -324,6 +325,19 @@ constexpr const char* CCL_SYCL_REDUCE_SCATTER_MEDIUM_THRESHOLD = "CCL_SYCL_REDUC
 constexpr const char* CCL_SYCL_REDUCE_SCATTER_SCALEOUT_THRESHOLD = "CCL_SYCL_REDUCE_SCATTER_SCALEOUT_THRESHOLD";
 
 /**
+ * @brief Specify allgatherv SYCL scale-out algorithm
+ *
+ * @details Set the algorithm string from a list of available algorithms to set
+ * a specific algorithm for scale-out phase.
+ * ALLGATHERV algorithms
+ * - auto           Automatic selection. Default vaue.
+ * - direct         Based on MPI_Iallgatherv
+ * - ring           Ring algorithm
+ *
+ */
+constexpr const char* CCL_SYCL_ALLGATHERV_SCALEOUT = "CCL_SYCL_ALLGATHERV_SCALEOUT";
+
+/**
  * @brief Specify reduce-scatter SYCL scale-out algorithm
  *
  * @details Set the algorithm string from a list of available algorithms to set
@@ -340,6 +354,15 @@ constexpr const char* CCL_SYCL_REDUCE_SCATTER_LL_THRESHOLD = "CCL_SYCL_REDUCE_SC
 
 constexpr const char* CCL_SYCL_ALLGATHERV_LL_THRESHOLD = "CCL_SYCL_ALLGATHERV_LL_THRESHOLD";
 
+constexpr const char* CCL_SYCL_ALLGATHERV_CHUNKING_THRESHOLD = "CCL_SYCL_ALLGATHERV_CHUNKING_THRESHOLD";
+
+constexpr const char* CCL_SYCL_ALLTOALL_SCALEOUT = "CCL_SYCL_ALLTOALL_SCALEOUT";
+
+constexpr const char* CCL_SYCL_ALLTOALL_ARC_LL = "CCL_SYCL_ALLTOALL_ARC_LL";
+
+constexpr const char* CCL_SYCL_ALLTOALL_ARC_LL_SYNC = "CCL_SYCL_ALLTOALL_ARC_LL_SYNC";
+
+constexpr const char* CCL_SYCL_ALLTOALL_LL_CHUNK_THRESHOLD = "CCL_SYCL_ALLTOALL_LL_CHUNK_THRESHOLD";
 /** @} */
 /** @} */
 

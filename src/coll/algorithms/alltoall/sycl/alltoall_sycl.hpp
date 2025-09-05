@@ -15,6 +15,7 @@
 */
 #pragma once
 #include "coll/algorithms/utils/sycl_coll_base.hpp"
+#include "coll/algorithms/utils/sycl_selection.hpp"
 
 namespace ccl {
 namespace v1 {
@@ -39,6 +40,24 @@ ccl::event alltoall_sycl(sycl::queue& q,
                          const alltoall_attr& attr,
                          const vector_class<event>& deps,
                          bool& done);
+
+void alltoall_sycl_single_node_onestep_init(const void *src,
+                         void *dst,
+                         size_t count,
+                         ccl::datatype dtype,
+                         ccl_comm *comm,
+                         ccl_stream *global_stream);
+
+sycl::event alltoall_sycl_single_node_onestep(const void *src,
+                         void *dst,
+                         int dst_rank,
+                         int step,
+                         size_t count,
+                         ccl::datatype dtype,
+                         ccl_comm *comm,
+                         ccl_stream *global_stream);
+
+
 } // namespace v1
 } // namespace ccl
 
@@ -49,3 +68,15 @@ ccl::event alltoall_large(const void* send_buf,
                           ccl_comm* comm,
                           ccl_stream* global_stream,
                           const ccl::vector_class<ccl::event>& deps);
+
+ccl::event alltoall_scaleout_sycl(sycl::queue& q,
+                                  const void* send_buf,
+                                  void* recv_buf,
+                                  size_t count,
+                                  ccl::datatype dtype,
+                                  ccl_comm* comm,
+                                  ccl_stream* global_stream,
+                                  const ccl::vector_class<ccl::event>& deps,
+                                  bool original_deps,
+                                  sycl_alltoall_tune_attr tune_attr,
+                                  bool& done);
