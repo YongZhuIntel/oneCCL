@@ -470,7 +470,7 @@ sycl::event pipe_sendrecv(sycl::queue& q,
                                    deps);
     }
     else {
-        return pipe_sendrecv_rdma(q,
+        return sendrecv_rdma(q,
                                   send_buf,
                                   send_count,
                                   dest,
@@ -480,7 +480,6 @@ sycl::event pipe_sendrecv(sycl::queue& q,
                                   src,
                                   recvtag,
                                   dtype,
-                                  nchunks,
                                   comm,
                                   deps);
     }
