@@ -215,7 +215,6 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
 
     // ----- Scaleout Allgatherv Phase -----
     const int scaleout_buf_size = global_comm->get_scaleout_device_buf_size();
-    void* scaleout_buf = global_comm->get_scaleout_device_buf(q);
     size_t max_pack_count;
     if (total_scaleout_count * ccl_dtype.size() <= scaleout_buf_size) {
         max_pack_count = send_count;
@@ -239,6 +238,11 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
     void* scaleout_send;
     int send_offset = 0;
     int nchunks = (send_count + max_pack_count - 1) / max_pack_count;
+
+    bool skip_scaleup = nchunks == 1 && node_size == 1;
+
+    void* scaleout_buf = !skip_scaleup ? global_comm->get_scaleout_device_buf(q) : recv_buf;
+
     for (int iter = 0; iter < nchunks; iter++) {
         int pack_count = (iter < nchunks - 1) ? max_pack_count : send_count - send_offset;
 
@@ -273,7 +277,7 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
         }
 
         // ----- Scaleup Allgatherv Inplace Phase -----
-        {
+        if (!skip_scaleup) {
             std::vector<size_t> scaleup_counts(node_size, pack_count);
             for (int i = 0; i < r2r_size; i++) {
                 std::vector<size_t> scaleup_offsets(global_offsets.begin() + i * node_size,
@@ -309,7 +313,9 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
         }
     }
 
-    global_comm->put_scaleout_device_buf(scaleout_buf);
+    if (!skip_scaleup) {
+        global_comm->put_scaleout_device_buf(scaleout_buf);
+    }
 
     return ev;
 }
