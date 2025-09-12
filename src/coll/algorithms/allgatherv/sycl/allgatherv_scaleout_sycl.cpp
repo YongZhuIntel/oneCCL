@@ -170,6 +170,10 @@ ccl::event allgatherv_scaleout_sycl(sycl::queue& q,
     switch (tune_attr.algo) {
         case allgatherv_scaleout_algo::direct: {
             bool copy_to_host = ccl::global_data::env().sycl_enable_direct_gpu_rdma ? false : true;
+            ze_device_handle_t ze_dev = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(q.get_device());
+            if (should_disable_rdma(ze_dev)) {
+                copy_to_host = true;
+            }
             return allgatherv_scaleout_sycl_direct(q,
                                                    send_buf,
                                                    send_count,

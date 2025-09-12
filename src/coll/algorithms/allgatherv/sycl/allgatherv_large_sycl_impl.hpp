@@ -491,6 +491,12 @@ ccl::event allgatherv_large_impl_tmp(const void* send_buf,
                 output_event = submit_wait_on_events(q, work_events);
             }
         }
+        else if (nc == num_chunks - 1) {
+            sycl::event barrier_event2;
+            barrier_event2 = invoke_barrier(node_comm, q, work_events, is_cpu_barrier);
+            work_events.clear();
+            output_event = submit_wait_on_events(q, { barrier_event2 });
+        }
         else {
             output_event = submit_wait_on_events(q, work_events);
         }

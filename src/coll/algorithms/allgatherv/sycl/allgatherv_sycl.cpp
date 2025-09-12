@@ -56,9 +56,10 @@ ccl::event allgather_sycl_single_node(sycl::queue& q,
         std::vector<sycl::event> dep_events = get_sycl_events(deps);
         if (send_buf != recv_buf) {
             LOG_DEBUG("single rank: out-of-place case, coll: allgatherv");
+            void* dst_buf = offsets.empty() ? recv_buf : (char*)recv_buf + offsets[0];
             sycl_e = q.submit([=](sycl::handler& h) {
                 h.depends_on(dep_events);
-                h.memcpy(recv_buf, send_buf, send_count * ccl_dtype.size());
+                h.memcpy(dst_buf, send_buf, send_count * ccl_dtype.size());
             });
         }
         else {
@@ -227,15 +228,6 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
     }
 
     size_t node_size = node_comm->size();
-    std::vector<size_t> node_offsets(r2r_size);
-    node_offsets[0] = 0;
-    auto first = recv_counts.begin();
-    auto last = first + node_size;
-    for (int i = 1; i < r2r_size; i++) {
-        node_offsets[i] = std::accumulate(first, last, node_offsets[i - 1]);
-        first += node_size;
-        last += node_size;
-    }
 
     std::vector<size_t> global_offsets(recv_counts.size());
     global_offsets[0] = 0;
@@ -301,12 +293,13 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
                     LOG_ERROR("allgatherv_sycl allgatherv single node was not done -- falling back");
                     return ev;
                 }
+
+                evs.clear();
+                evs.push_back(std::move(ev));
             }
         }
 
         if (iter < nchunks - 1) {
-            evs.clear();
-            evs.push_back(std::move(ev));
             send_offset += pack_count;
 
             for (int i = 0; i < global_offsets.size(); i++) {
@@ -315,9 +308,10 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
         }
     }
 
-    auto sycl_ev = ev.get_native();
+    //auto sycl_ev = ev.get_native();
+    auto sycl_evs = get_sycl_events(evs);
     auto e = q.submit([=](sycl::handler& h) {
-        h.depends_on(sycl_ev);
+        h.depends_on(sycl_evs);
         h.host_task([=]() {
             global_comm->put_scaleout_device_buf(scaleout_buf);
         });
