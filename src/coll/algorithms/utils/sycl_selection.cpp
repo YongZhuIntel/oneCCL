@@ -154,9 +154,9 @@ bool can_use_sycl_kernels(const ccl_selector_param& param) {
     // Conditions specific to both allgather/allgatherv
     if (param.ctype == ccl_coll_allgatherv || param.ctype == ccl_coll_allgather) {
         if (!is_single_node) {
-            RETURN_FALSE_IF(
-                ccl::global_data::env().atl_transport == ccl_atl_ofi,
-                "SYCL based Allgather/Allgatherv in multiple node mode supports only MPI transport");
+        //    RETURN_FALSE_IF(
+        //        ccl::global_data::env().atl_transport == ccl_atl_ofi,
+        //        "SYCL based Allgather/Allgatherv in multiple node mode supports only MPI transport");
 
             ccl_comm* r2r_comm = param.comm->get_r2r_comm().get();
             // Since SYCL based Allgatherv supports only equal receive counts,
