@@ -280,8 +280,12 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
         if (!skip_scaleup) {
             std::vector<size_t> scaleup_counts(node_size, pack_count);
             for (int i = 0; i < r2r_size; i++) {
-                std::vector<size_t> scaleup_offsets(global_offsets.begin() + i * node_size,
-                                                    global_offsets.begin() + (i + 1) * node_size);
+                std::vector<size_t> offsets(node_size);
+		for (int r = 0; r < node_size; r++) {
+                    const int global_rank = r + i * node_size;
+		    offsets[r] = send_count * global_rank * ccl_dtype.size() + send_offset * ccl_dtype.size();
+                }
+
                 evs.clear();
                 evs.push_back(std::move(ev));
                 ev = allgather_sycl_single_node(q,
@@ -289,7 +293,7 @@ ccl::event allgatherv_sycl_multi_node(sycl::queue& q,
                                                 recv_scaleout_counts[i],
                                                 (char*)recv_buf,
                                                 scaleup_counts,
-                                                scaleup_offsets,
+                                                offsets,
                                                 dtype,
                                                 node_comm,
                                                 global_stream,

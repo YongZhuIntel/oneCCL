@@ -44,6 +44,7 @@ struct ReduceScatter : public Transmit<T, NRanks, Proto, SubGroupSize> {
                   bool p2p)
             : Transmit<T, NRanks, Proto, SubGroupSize>(input,
                                                        output,
+                                                       NULL,
                                                        scatterBuf,
                                                        gatherBuf,
                                                        peerBuf0,

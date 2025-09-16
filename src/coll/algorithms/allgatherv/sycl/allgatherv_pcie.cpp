@@ -46,6 +46,8 @@ ccl::event allgatherv_ll_ring(const void *send_buf,
     uint32_t pattern = comm->get_rt_pattern(pattern_type::collective, -1);
 
     auto lambda = [&]<typename T, int NRanks, template <typename, int> class Proto>() {
+        const size_t *offs = offsets.empty()? NULL : offsets.data();
+
         T *peerbuf0[NRanks];
         T *peerbuf1[NRanks];
         for (int i = 0; i < NRanks; i++) {
@@ -56,6 +58,7 @@ ccl::event allgatherv_ll_ring(const void *send_buf,
         T *ipcbuf1 = (T *)get_tmp_buf(1, comm);
         sycl::event e = AllGather<T, NRanks, Proto, RingTransmit>::launch((T *)send_buf,
                                                                           (T *)recv_buf,
+                                                                          offs,
                                                                           ipcbuf0,
                                                                           ipcbuf1,
                                                                           peerbuf0,

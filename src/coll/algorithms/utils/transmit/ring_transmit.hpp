@@ -87,6 +87,7 @@ public:
         auto next = (rank + 1) % NRanks;
         ingress = input;
         egress = input;
+        has_offsets = false;
 
         scatterSink = reinterpret_cast<ringPtr>((uintptr_t)peerBuf0[next]);
         gatherSink = reinterpret_cast<ringPtr>((uintptr_t)peerBuf1[next]);
@@ -97,6 +98,7 @@ public:
 
     RingTransmit(T* input,
                  T* output,
+                 const size_t *offs,
                  T* scatterBuf,
                  T* gatherBuf,
                  T* const peerBuf0[],
@@ -112,6 +114,13 @@ public:
         auto next = (rank + 1) % NRanks;
         ingress = input;
         egress = output;
+
+        has_offsets = false;
+        if (offs) {
+            has_offsets = true;
+            for (int i = 0; i < NRanks; i++)
+                offsets[i] = offs[i];
+        }
 
         scatterSink = reinterpret_cast<ringPtr>((uintptr_t)peerBuf0[next]);
         gatherSink = reinterpret_cast<ringPtr>((uintptr_t)peerBuf1[next]);
@@ -222,7 +231,11 @@ public:
 
         restoreData(v);
 
-        auto* ptr = egress + peer * workElems + offset;
+        auto* ptr = egress + offset;
+        if (has_offsets)
+            ptr = (T *)((char *)ptr + offsets[peer]);
+        else
+            ptr = ptr + peer * workElems;
         storeOutput(ptr, v, nelems);
     }
 
@@ -243,7 +256,11 @@ public:
 
         restoreData(v);
 
-        auto* ptr = egress + peer * workElems + offset;
+        auto* ptr = egress + offset;
+        if (has_offsets)
+            ptr = (T *)((char *)ptr + offsets[peer]);
+        else
+            ptr = ptr + peer * workElems;
         storeOutput(ptr, v, nelems);
     }
 
@@ -310,25 +327,25 @@ public:
         // Step 1 to N-1
 #pragma unroll
         for (int i = 1; i < NRanks - 1; ++i) {
-            p_idx = (p_idx - 1) % NRanks;
+            p_idx = (p_idx + NRanks - 1) % NRanks;
             peer = (rank + p_idx) % NRanks;
             loadRecvReduceSend(wireId, peer, offset, flag, slot, nelems);
         }
 
         // Step N
-        p_idx = (p_idx - 1) % NRanks;
+        p_idx = (p_idx + NRanks - 1) % NRanks;
         peer = (rank + p_idx) % NRanks;
         loadRecvReduceSendWrtback(wireId, peer, offset, flag, slot, nelems);
 
         // write back
 #pragma unroll
         for (uint32_t i = 1; i < NRanks - 1; ++i) {
-            p_idx = (p_idx - 1) % NRanks; // 0
+            p_idx = (p_idx + NRanks - 1) % NRanks; // 0
             peer = (rank + p_idx) % NRanks;
             recvSendWrtback(wireId, peer, offset, flag, slot, nelems);
         }
 
-        p_idx = (p_idx - 1) % NRanks;
+        p_idx = (p_idx + NRanks - 1) % NRanks;
         peer = (rank + p_idx) % NRanks;
         recvWrtback(wireId, peer, offset, flag, slot, nelems);
     }
@@ -358,8 +375,13 @@ public:
         int peer = (rank + p_idx) % NRanks;
 
         auto* ptr = ingress + inputOffInType;
-        auto* o_ptr = egress + peer * workElems + inputOffInType;
         loadInput(v, ptr, nelems);
+
+        auto* o_ptr = egress + inputOffInType;
+        if (has_offsets)
+            o_ptr = (T *)((char *)o_ptr + offsets[peer]);
+        else
+            o_ptr = o_ptr + peer * workElems;
 
         if (ptr != o_ptr)
             storeOutput(o_ptr, v, nelems);
@@ -372,12 +394,12 @@ public:
 
 #pragma unroll
         for (uint32_t i = 1; i < NRanks - 1; ++i) {
-            p_idx = (p_idx - 1) % NRanks; // 0
+            p_idx = (p_idx + NRanks - 1) % NRanks; // 0
             peer = (rank + p_idx) % NRanks;
             recvSendWrtback(wireId, peer, inputOffInType, flag, slot, nelems);
         }
 
-        p_idx = (p_idx - 1) % NRanks;
+        p_idx = (p_idx + NRanks - 1) % NRanks;
         peer = (rank + p_idx) % NRanks;
 
         recvWrtback(wireId, peer, inputOffInType, flag, slot, nelems);
@@ -403,7 +425,7 @@ public:
         auto nelems = workLeft / sizeof(T);
 
         uint32_t p_idx = -1;
-        int peer = (rank + p_idx + NRanks) % NRanks;
+        int peer = (rank + NRanks + p_idx) % NRanks;
 
         // Step 0
         send(wireId, peer, offset, flag, slot, nelems);
@@ -411,13 +433,13 @@ public:
         // Step 1 to N-1
 #pragma unroll
         for (int i = 1; i < NRanks - 1; ++i) {
-            p_idx = (p_idx - 1) % NRanks;
+            p_idx = (p_idx + NRanks - 1) % NRanks;
             peer = (rank + p_idx) % NRanks;
             loadRecvReduceSend(wireId, peer, offset, flag, slot, nelems);
         }
 
         // Step N
-        p_idx = (p_idx - 1) % NRanks;
+        p_idx = (p_idx + NRanks - 1) % NRanks;
         peer = (rank + p_idx) % NRanks;
         loadRecvReduceWrtback(wireId, peer, offset, flag, slot, nelems);
     }
@@ -482,6 +504,8 @@ public:
 protected:
     T* ingress;
     T* egress;
+    size_t offsets[ARC_MAX_NUM];
+    bool has_offsets;
 
     ssize_t workElems;
     int rank;
