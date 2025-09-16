@@ -122,7 +122,7 @@ sycl::event arc_ll256_alltoall(const void *src,
 
         int next_rank = (local_world_rank + 1) % local_world_size;
 
-        char *local_peer_bufs[ARC_NUM];
+        char *local_peer_bufs[ARC_MAX_NUM];
 
         // use large kernel persistent buffers
         for (int i = 0; i < local_world_size; i++) {

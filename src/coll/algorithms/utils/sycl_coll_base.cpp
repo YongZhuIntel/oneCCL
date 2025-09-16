@@ -17,6 +17,7 @@
 #include "comm/comm.hpp"
 #include "sched/entry/factory/entry_factory.hpp"
 #include "coll/algorithms/utils/sycl_coll_base.hpp"
+#include "coll/algorithms/utils/transmit/transmit.hpp"
 
 // sync_ptrs is used for counting in local kernel_barrier
 static ccl_kernel_barrier_data kernel_barrier_data;
@@ -277,7 +278,14 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
             // WA : use smaller tmp buffer for client GPUs
             if (is_arc_card(ccl::ze::get_device_family(global_stream->get_ze_device())) &&
                 ccl::global_data::env().sycl_tmp_buf_size == 3 * 128 * 1024 * 1024) {
-                ccl::global_data::env().sycl_tmp_buf_size = 3 * 16 * 1024 * 1024;
+                // ringSize is RingTransmit's  static variable
+                // the ringSize is  regardless of protocol, and
+                // ringSize is per peer rank, and it is rounded up to 2MB
+                ccl::global_data::env().sycl_tmp_buf_size =
+                    3 * ((ccl::global_data::get().get_local_proc_count() *
+                              RingTransmit<int, Rt64_128_PCIE>::ringSize +
+                          2097152 - 1) /
+                         2097152 * 2097152);
             }
             const size_t tmp_buf_size = ccl::global_data::env().sycl_tmp_buf_size / tmp_bufs_count;
             const size_t tmp_buf_size_per_rank_orig =
