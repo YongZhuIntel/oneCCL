@@ -567,6 +567,22 @@ public:
         return node_comm;
     }
 
+    std::shared_ptr<ccl_comm> get_numa_comm() const {
+        if (parent_comm) {
+            return parent_comm->get_numa_comm();
+        }
+        CCL_ASSERT(numa_comm, "no numa_comm");
+        return numa_comm;
+    }
+
+    std::shared_ptr<ccl_comm> get_numa_r2r_comm() const {
+        if (parent_comm) {
+            return parent_comm->get_numa_r2r_comm();
+        }
+        CCL_ASSERT(numa_r2r_comm, "no numa_r2r_comm");
+        return numa_r2r_comm;
+    }
+
     std::shared_ptr<ccl_comm> get_even_comm() const {
         if (parent_comm) {
             return parent_comm->get_even_comm();
@@ -772,6 +788,8 @@ private:
     // TODO: double check if these can be moved to comm_impl as shared fields
     std::shared_ptr<ccl_comm> r2r_comm;
     std::shared_ptr<ccl_comm> node_comm;
+    std::shared_ptr<ccl_comm> numa_comm;
+    std::shared_ptr<ccl_comm> numa_r2r_comm;
     std::shared_ptr<ccl_comm> even_comm;
     std::shared_ptr<ccl_comm> pair_comm;
 

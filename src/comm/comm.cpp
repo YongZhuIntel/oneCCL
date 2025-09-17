@@ -241,6 +241,8 @@ ccl_comm::ccl_comm(const ccl_comm& src, int comm_id)
         : ccl_comm(comm_id, src.get_atl_comm(), true, true) {
     r2r_comm = src.r2r_comm;
     node_comm = src.node_comm;
+    numa_comm = src.numa_comm;
+    numa_r2r_comm = src.numa_r2r_comm;
     even_comm = src.even_comm;
     pair_comm = src.pair_comm;
 }
@@ -278,7 +280,79 @@ ccl_comm* ccl_comm::create(int size, ccl::shared_ptr_class<ccl::kvs_interface> k
 
 void ccl_comm::create_topo_subcomms(std::shared_ptr<atl_base_comm> atl_comm) {
     r2r_comm = std::shared_ptr<ccl_comm>(create_subcomm(atl_comm->get_r2r_color()));
-    node_comm = std::shared_ptr<ccl_comm>(create_subcomm(topo_manager.get_host_idx()));
+
+    ccl_comm* node_comm_ptr = create_subcomm(topo_manager.get_host_idx());
+    CCL_THROW_IF_NOT(node_comm_ptr, "Failed to create node communicator");
+    node_comm = std::shared_ptr<ccl_comm>(node_comm_ptr);
+
+    // Create NUMA-aware communicators after node_comm is established
+    int numa_nodes_per_host = ccl::global_data::get().hwloc_wrapper->get_numa_node_count();
+    int node_size = node_comm->size();
+    int local_rank = node_comm->rank();
+
+    // Calculate NUMA color and r2r color
+    int ranks_per_numa = node_size / numa_nodes_per_host;
+    int numa_color = local_rank / ranks_per_numa;
+    int r2r_color = local_rank % numa_nodes_per_host; // Assuming one NIC per NUMA node
+
+    // Create numa_comm: ranks that share a NUMA node
+    if (numa_nodes_per_host > 1 && ranks_per_numa > 0) {
+        // Use node_comm to create sub-communicators based on NUMA topology
+        std::shared_ptr<atl_base_comm> numa_atl_comm = node_comm->get_atl_comm()->comm_split(numa_color, local_rank);
+        numa_comm = std::shared_ptr<ccl_comm>(new ccl_comm(
+            numa_atl_comm->get_comm_id(), numa_atl_comm, true /*share_resources*/, true /*subcomm*/));
+        numa_comm->set_parent_comm(this);
+
+        // Create numa_r2r_comm: ranks mapped to the same NIC (one per NUMA node)
+        std::shared_ptr<atl_base_comm> numa_r2r_atl_comm = node_comm->get_atl_comm()->comm_split(r2r_color, local_rank);
+        numa_r2r_comm = std::shared_ptr<ccl_comm>(new ccl_comm(
+            numa_r2r_atl_comm->get_comm_id(), numa_r2r_atl_comm, true /*share_resources*/, true /*subcomm*/));
+        numa_r2r_comm->set_parent_comm(this);
+
+        // Debug: Show all ranks in NUMA communicators in global coordinates
+        std::string numa_comm_ranks = "";
+        std::string numa_r2r_comm_ranks = "";
+        
+        // Show which global ranks belong to each NUMA communicator
+        for (int node_rank = 0; node_rank < node_size; node_rank++) {
+            int global_rank = node_comm->get_global_rank(node_rank);
+            int rank_numa_color = node_rank / ranks_per_numa;
+            int rank_r2r_color = node_rank % numa_nodes_per_host;
+            
+            if (rank_numa_color == numa_color) {
+                if (!numa_comm_ranks.empty()) numa_comm_ranks += ",";
+                numa_comm_ranks += std::to_string(global_rank);
+            }
+            
+            if (rank_r2r_color == r2r_color) {
+                if (!numa_r2r_comm_ranks.empty()) numa_r2r_comm_ranks += ",";
+                numa_r2r_comm_ranks += std::to_string(global_rank);
+            }
+        }
+
+        LOG_DEBUG("Created NUMA communicators: numa_comm size=", numa_comm->size(), 
+                  " global_ranks=[", numa_comm_ranks, "]",
+                  ", numa_r2r_comm size=", numa_r2r_comm->size(),
+                  " global_ranks=[", numa_r2r_comm_ranks, "]",
+                  ", numa_nodes_per_host=", numa_nodes_per_host,
+                  ", local_rank=", local_rank, ", numa_color=", numa_color, ", r2r_color=", r2r_color);
+    } else {
+        // Single NUMA node case: numa communicators are the same as node communicator
+        numa_comm = node_comm;
+        numa_r2r_comm = node_comm;
+        
+        // Debug: Show all ranks for single NUMA case
+        std::string node_ranks = "";
+        for (int node_rank = 0; node_rank < node_size; node_rank++) {
+            int global_rank = node_comm->get_global_rank(node_rank);
+            if (!node_ranks.empty()) node_ranks += ",";
+            node_ranks += std::to_string(global_rank);
+        }
+        
+        LOG_DEBUG("Single NUMA node: numa_comm and numa_r2r_comm same as node_comm, size=", node_size,
+                  " global_ranks=[", node_ranks, "], numa_nodes_per_host=", numa_nodes_per_host);
+    }
+
     even_comm = std::shared_ptr<ccl_comm>(
         create_subcomm(topo_manager.get_inter_card_color(atl_comm->get_rank())));
     pair_comm = std::shared_ptr<ccl_comm>(create_subcomm(
@@ -414,6 +488,8 @@ std::string ccl_comm::to_string_ext() const {
     ss << "   " << to_string() << "\n";
     ss << "   r2r_comm: " << (r2r_comm ? r2r_comm->to_string() : "{}") << "\n";
     ss << "   node_comm: " << (node_comm ? node_comm->to_string() : "{}") << "\n";
+    ss << "   numa_comm: " << (numa_comm ? numa_comm->to_string() : "{}") << "\n";
+    ss << "   numa_r2r_comm: " << (numa_r2r_comm ? numa_r2r_comm->to_string() : "{}") << "\n";
     ss << "   even_comm: " << (even_comm ? even_comm->to_string() : "{}") << "\n";
     ss << "   pair_comm: " << (pair_comm ? pair_comm->to_string() : "{}") << "\n";
     ss << "   env: " << (env ? env->to_string() : "{}") << "\n";
