@@ -197,6 +197,7 @@ env_data::env_data()
 	  sycl_allgatherv_scaleout_algo("auto"),
 
 	  sycl_enable_arc_alltoall_ll(0),
+	  sycl_enable_arc_alltoall_ll_sync(0),
 
           enable_sycl_kernels(1),
 
@@ -556,6 +557,7 @@ void env_data::parse() {
     p.env_2_type(CCL_SYCL_ALLGATHERV_SCALEOUT, sycl_allgatherv_scaleout_algo);
 
     p.env_2_type(CCL_SYCL_ALLTOALL_ARC_LL, sycl_enable_arc_alltoall_ll);
+    p.env_2_type(CCL_SYCL_ALLTOALL_ARC_LL_SYNC, sycl_enable_arc_alltoall_ll_sync);
 
     p.env_2_type(CCL_ENABLE_SYCL_KERNELS, enable_sycl_kernels);
 
@@ -1006,6 +1008,7 @@ void env_data::print(int rank, bool is_mt_enabled) {
     LOG_INFO(CCL_SYCL_ALLGATHERV_SCALEOUT, ": ", (!sycl_allgatherv_scaleout_algo.empty()) ? sycl_allgatherv_scaleout_algo : CCL_ENV_STR_NOT_SPECIFIED);
 
     LOG_INFO(CCL_SYCL_ALLTOALL_ARC_LL, ": ", sycl_enable_arc_alltoall_ll);
+    LOG_INFO(CCL_SYCL_ALLTOALL_ARC_LL_SYNC, ": ", sycl_enable_arc_alltoall_ll_sync);
 
     LOG_INFO(CCL_ENABLE_SYCL_KERNELS, ": ", enable_sycl_kernels);
 

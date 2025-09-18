@@ -355,6 +355,8 @@ constexpr const char* CCL_SYCL_ALLGATHERV_LL_THRESHOLD = "CCL_SYCL_ALLGATHERV_LL
 
 constexpr const char* CCL_SYCL_ALLTOALL_ARC_LL = "CCL_SYCL_ALLTOALL_ARC_LL";
 
+constexpr const char* CCL_SYCL_ALLTOALL_ARC_LL_SYNC = "CCL_SYCL_ALLTOALL_ARC_LL_SYNC";
+
 /** @} */
 /** @} */
 
