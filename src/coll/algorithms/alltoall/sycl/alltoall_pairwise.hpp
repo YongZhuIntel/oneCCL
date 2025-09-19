@@ -99,6 +99,14 @@ ccl::event alltoall_sycl_pairwise_rdma(sycl::queue& q,
                 if (local_ar[src] == 0) {
                     ATL_CALL_THROW_IF_ERROR(atl_comm->wait(ep_idx, recv_req));
                 }
+               if (local_ar[src] == 0) {
+                    atl_req_t req;
+                    ATL_CALL_THROW_IF_ERROR(atl_comm->barrier(ep_idx, req));
+                    ATL_CALL_THROW_IF_ERROR(atl_comm->check(ep_idx, req));
+                    if (!req.is_completed) {
+                       ATL_CALL_THROW_IF_ERROR(atl_comm->wait(ep_idx, req));
+                    }
+                }
             }
         });
     });
