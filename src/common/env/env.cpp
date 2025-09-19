@@ -116,6 +116,7 @@ env_data::env_data()
           mnic_type(ATL_MNIC_NONE),
           mnic_count(CCL_ENV_SIZET_NOT_SPECIFIED),
           mnic_offset(ATL_MNIC_OFFSET_NONE),
+          ofi_domain_names(CCL_ENV_STR_NOT_SPECIFIED),
 
           enable_algo_fallback(1),
           enable_unordered_coll(0),
@@ -431,6 +432,7 @@ void env_data::parse() {
         mnic_count = worker_count;
     }
     p.env_2_enum(CCL_MNIC_OFFSET, mnic_offset_names, mnic_offset);
+    p.env_2_type(CCL_OFI_DOMAIN_NAMES, ofi_domain_names);
 
     p.env_2_type(CCL_ALGO_FALLBACK, enable_algo_fallback);
     // main algorithm selection
@@ -874,6 +876,7 @@ void env_data::print(int rank, bool is_mt_enabled) {
         CCL_MNIC_NAME, ": ", (mnic_name_raw.length()) ? mnic_name_raw : CCL_ENV_STR_NOT_SPECIFIED);
     LOG_INFO(CCL_MNIC_COUNT, ": ", mnic_count);
     LOG_INFO(CCL_MNIC_OFFSET, ": ", str_by_enum(mnic_offset_names, mnic_offset));
+    LOG_INFO(CCL_OFI_DOMAIN_NAMES, ": ", (ofi_domain_names.length()) ? ofi_domain_names : CCL_ENV_STR_NOT_SPECIFIED);
 
     LOG_INFO(CCL_ALGO_FALLBACK, ": ", enable_algo_fallback);
     LOG_INFO(CCL_ALLGATHER,

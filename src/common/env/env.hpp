@@ -144,6 +144,7 @@ public:
     std::string mnic_name_raw;
     ssize_t mnic_count;
     atl_mnic_offset_t mnic_offset;
+    std::string ofi_domain_names;
 
     /*
        parsing logic can be quite complex
