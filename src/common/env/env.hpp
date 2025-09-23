@@ -250,6 +250,7 @@ public:
     size_t sycl_allgatherv_scaleout_threshold;
     size_t sycl_allgatherv_ll_threshold;
     std::string sycl_allgatherv_scaleout_algo;
+    size_t sycl_allgatherv_chunking_threshold;
 
     bool enable_sycl_kernels;
 

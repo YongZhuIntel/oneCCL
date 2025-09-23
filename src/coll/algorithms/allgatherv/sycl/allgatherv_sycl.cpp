@@ -79,10 +79,50 @@ ccl::event allgather_sycl_single_node(sycl::queue& q,
         }
         if (send_count * ccl_dtype.size() < 256 * 1024 || !ccl::global_data::env().sycl_ccl_barrier ||
             ccl::global_data::env().sycl_allgatherv_tmp_buf) {
-            LOG_DEBUG("invoking allgatherv LL256 kernel, send_count:", send_count, " datatype: ", dtype);
-            e = allgatherv_ll_ring(
-                send_buf, send_count, recv_buf, recv_counts, offsets, dtype, comm, global_stream, deps, done);
-            LOG_DEBUG("invoking allgatherv LL256 kernel, count:", send_count, " datatype: ", dtype, " done");
+            int node_size = comm->size();
+            const int chunk_size = ccl::global_data::env().sycl_allgatherv_chunking_threshold;
+            size_t max_pack_count;
+            if (chunk_size == 0 || send_count * ccl_dtype.size() <= chunk_size) {
+                max_pack_count = send_count;
+            }
+            else {
+                max_pack_count = chunk_size;
+                int typesize = std::max(4, (int)ccl_dtype.size());
+                max_pack_count = max_pack_count / typesize * typesize;
+                max_pack_count = max_pack_count / ccl_dtype.size();
+                CCL_ASSERT(max_pack_count > 0);
+            }
+
+            int send_offset = 0;
+            int nchunks = (send_count + max_pack_count - 1) / max_pack_count;
+            for (int iter = 0; iter < nchunks; iter++) {
+                int pack_count = (iter < nchunks - 1) ? max_pack_count : send_count - send_offset;
+                std::vector<size_t> scaleup_counts(node_size, pack_count);
+                std::vector<size_t> scaleup_offsets(node_size);
+                for (int r = 0; r < node_size; r++) {
+                    scaleup_offsets[r] = (offsets.empty() ?r * send_count * ccl_dtype.size() : offsets[r]) +
+                                         send_offset * ccl_dtype.size();
+                }
+#ifdef CCL_ENABLE_ITT
+                ccl::profile::itt::task_begin("allgatherv_small", "send_size", pack_count * ccl_dtype.size());
+#endif // CCL_ENABLE_ITT
+                LOG_DEBUG("invoking allgatherv LL256 kernel, send_count:", pack_count, " datatype: ", dtype);
+                e = allgatherv_ll_ring((char*)send_buf + send_offset * ccl_dtype.size(),
+                                       pack_count,
+                                       recv_buf,
+                                       scaleup_counts,
+                                       scaleup_offsets,
+                                       dtype,
+                                       comm,
+                                       global_stream,
+                                       deps,
+                                       done);
+                LOG_DEBUG("invoking allgatherv LL256 kernel, count:", pack_count, " datatype: ", dtype, " done");
+#ifdef CCL_ENABLE_ITT
+                ccl::profile::itt::task_end();
+#endif // CCL_ENABLE_ITT
+                send_offset += pack_count;
+            } // for
             return e;
         }
         CCL_THROW_IF_NOT(ccl::global_data::env().sycl_ccl_barrier,
