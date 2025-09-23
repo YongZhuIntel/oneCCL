@@ -192,7 +192,7 @@ env_data::env_data()
           sycl_allgatherv_tmp_buf(0),
           sycl_allgatherv_small_threshold(131072),
           sycl_allgatherv_medium_threshold(2097152),
-          sycl_allgatherv_scaleout_threshold(1073741824),
+          sycl_allgatherv_scaleout_threshold(4294967296),
           sycl_allgatherv_ll_threshold(2048),
 	  sycl_allgatherv_scaleout_algo("auto"),
 
