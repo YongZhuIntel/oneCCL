@@ -231,9 +231,10 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
     // if communicator is used for first time then do ipc exchage
     // to get remote ptrs used for barrier counting and remote tmp bufs
     if (!bd.is_set()) {
+        std::shared_ptr<ccl_comm> numa_comm = comm->get_numa_comm();
         std::shared_ptr<ccl_comm> even_comm = comm->get_even_comm();
         std::shared_ptr<ccl_comm> pair_comm = comm->get_pair_comm();
-        std::vector<std::shared_ptr<ccl_comm>> sub_comms{ node_comm, even_comm, pair_comm };
+        std::vector<std::shared_ptr<ccl_comm>> sub_comms{ node_comm, numa_comm, even_comm, pair_comm };
         ccl_large_tmp_bufs &comm_large_tmp_bufs = node_comm->get_large_tmp_bufs();
 
         sycl::queue q = global_stream->get_native_stream();
@@ -251,7 +252,10 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
         }
         q.memset(ptrs, 0, ptr_count * sizeof(size_t)).wait();
 
-        std::vector<void *> ipc_ptrs{ ptrs, ptrs + num_slots, ptrs + 2 * num_slots };
+        std::vector<void *> ipc_ptrs;
+        for (int i = 0; i < sub_comms.size(); i++) {
+            ipc_ptrs.push_back(ptrs + i * num_slots);
+        }
 
         // do one time initializations
         if (is_initial_invocation) {
@@ -357,6 +361,8 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
             for (size_t i = 0, j = large_buf_ipc_idx; i < tmp_bufs.size(); i++, j++) {
                 comm_large_tmp_bufs.remote_tmp_bufs[i] = get_ipc_ptrs<void, MAX_NODE_RANKS>(
                     node_comm, j, ipc_ptrs[j], ipc_handle_map, q_worker, q.get_device(), 1);
+                comm_large_tmp_bufs.remote_numa_tmp_bufs[i] = get_ipc_ptrs<void, MAX_NODE_RANKS>(
+                    numa_comm, j, ipc_ptrs[j], ipc_handle_map, q_worker, q.get_device(), 1);
                 comm_large_tmp_bufs.remote_even_tmp_bufs[i] = get_ipc_ptrs<void, MAX_GPUS>(
                     even_comm, j, ipc_ptrs[j], ipc_handle_map, q_worker, q.get_device(), 1);
                 comm_large_tmp_bufs.remote_pair_tmp_bufs[i] = get_ipc_ptrs<void, MAX_TILES>(
@@ -399,6 +405,21 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
                     (char *)(comm_large_tmp_bufs.remote_tmp_bufs[0][i]) + tmp_buf_size;
                 comm_large_tmp_bufs.remote_tmp_bufs[2][i] =
                     (char *)comm_large_tmp_bufs.remote_tmp_bufs[1][i] + tmp_buf_size;
+            }
+            // numa_comm
+            comm_large_tmp_bufs.remote_numa_tmp_bufs[0] =
+                get_ipc_ptrs<void, MAX_NODE_RANKS>(numa_comm,
+                                                   large_buf_ipc_idx,
+                                                   ipc_ptrs[large_buf_ipc_idx],
+                                                   sched,
+                                                   q_worker,
+                                                   1,
+                                                   false /* to_cache */);
+            for (int i = 0; i < numa_comm->size(); i++) {
+                comm_large_tmp_bufs.remote_numa_tmp_bufs[1][i] =
+                    (char *)(comm_large_tmp_bufs.remote_numa_tmp_bufs[0][i]) + tmp_buf_size;
+                comm_large_tmp_bufs.remote_numa_tmp_bufs[2][i] =
+                    (char *)comm_large_tmp_bufs.remote_numa_tmp_bufs[1][i] + tmp_buf_size;
             }
             // even_comm
             comm_large_tmp_bufs.remote_even_tmp_bufs[0] =
@@ -591,6 +612,12 @@ std::array<void *, MAX_NODE_RANKS> get_remote_node_tmp_buf(int index, ccl_comm *
     ccl_comm *node_comm = comm->get_node_comm().get();
     ccl_large_tmp_bufs &comm_large_tmp_bufs = node_comm->get_large_tmp_bufs();
     return comm_large_tmp_bufs.remote_tmp_bufs[index];
+}
+
+std::array<void *, MAX_NODE_RANKS> get_remote_numa_tmp_buf(int index, ccl_comm *comm) {
+    ccl_comm *node_comm = comm->get_node_comm().get();
+    ccl_large_tmp_bufs &comm_large_tmp_bufs = node_comm->get_large_tmp_bufs();
+    return comm_large_tmp_bufs.remote_numa_tmp_bufs[index];
 }
 
 std::array<void *, MAX_GPUS> get_remote_even_tmp_buf(int index, ccl_comm *comm) {

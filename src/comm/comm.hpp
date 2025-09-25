@@ -164,6 +164,7 @@ struct alignas(CACHELINE_SIZE) ccl_large_tmp_bufs {
     std::array<void*, buf_count> tmp_bufs;
     // ipc exchanged pointers to remote tmp buffers
     std::array<void*, MAX_NODE_RANKS> remote_tmp_bufs[buf_count] = {};
+    std::array<void*, MAX_NODE_RANKS> remote_numa_tmp_bufs[buf_count] = {};
     std::array<void*, MAX_GPUS> remote_even_tmp_bufs[buf_count] = {};
     std::array<void*, MAX_TILES> remote_pair_tmp_bufs[buf_count] = {};
 
@@ -172,6 +173,7 @@ struct alignas(CACHELINE_SIZE) ccl_large_tmp_bufs {
         tmp_bufs.fill(nullptr);
         for (int i = 0; i < buf_count; i++) {
             remote_tmp_bufs[i].fill(nullptr);
+            remote_numa_tmp_bufs[i].fill(nullptr);
             remote_even_tmp_bufs[i].fill(nullptr);
             remote_pair_tmp_bufs[i].fill(nullptr);
         }

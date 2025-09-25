@@ -378,6 +378,8 @@ void *get_tmp_buf(int index, ccl_comm *comm = nullptr);
 
 std::array<void *, MAX_NODE_RANKS> get_remote_node_tmp_buf(int index, ccl_comm *comm = nullptr);
 
+std::array<void *, MAX_NODE_RANKS> get_remote_numa_tmp_buf(int index, ccl_comm *comm = nullptr);
+
 std::array<void *, MAX_GPUS> get_remote_even_tmp_buf(int index, ccl_comm *comm = nullptr);
 
 std::array<void *, MAX_TILES> get_remote_pair_tmp_buf(int index, ccl_comm *comm = nullptr);
