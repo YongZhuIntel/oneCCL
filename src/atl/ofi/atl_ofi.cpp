@@ -48,12 +48,6 @@ atl_status_t atl_ofi::init(int* argc,
     int enable_shm = 0;
     bool should_open_provs = true;
 
-    char* domain_names = nullptr;
-    char *domain_name = nullptr;
-    int num_nics = 0;
-    char* saveptr = nullptr;
-    int local_idx = 0;
-
     enable_shm = attr->in.enable_shm;
 
     CCL_THROW_IF_NOT((sizeof(atl_ofi_req_t) <= sizeof(atl_req_t) - offsetof(atl_req_t, internal)),
@@ -106,26 +100,6 @@ atl_status_t atl_ofi::init(int* argc,
     base_hints->domain_attr->control_progress = FI_PROGRESS_MANUAL;
     base_hints->domain_attr->data_progress = FI_PROGRESS_MANUAL;
     base_hints->caps = FI_TAGGED;
-
-    domain_names = getenv("CCL_DOMAINS");
-    local_idx = coord.local_idx;
-    if (domain_names) {
-        domain_name = strtok_r(domain_names, ",", &saveptr);
-        while (domain_name && num_nics < 8) {
-            if (local_idx == num_nics) {
-                base_hints->domain_attr->name = strdup(domain_name);
-                LOG_INFO("$$$$$$:!!select domain:%s for local idx:%d global rank:%d\n",
-                         base_hints->domain_attr->name,
-                         local_idx,
-                         pmi->get_rank());
-                break;
-            }
-            num_nics++;
-            domain_name = strtok_r(NULL, ",", &saveptr);
-        }
-        fflush(stderr);
-    }
-
 
     prov_env = getenv("FI_PROVIDER");
 
