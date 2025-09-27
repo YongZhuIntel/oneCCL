@@ -554,7 +554,11 @@ static sycl_alltoall_tune_attr alltoall_auto_select_tune_attr(size_t size,
                                                               size_t comm_size,
                                                               ccl_datatype ccl_dtype) {
     if (ccl::global_data::env().sycl_enable_direct_gpu_rdma) {
-        return { alltoall_scaleout_algo::pairwise };
+        // for BMG
+        if (size <= 64 * 1024 * 1024)
+            return { alltoall_scaleout_algo::gdr_only };
+        else
+            return { alltoall_scaleout_algo::gdr_only_pairwise };
     }
 
     if (ccl::global_data::env().atl_transport != ccl_atl_ofi) {
@@ -575,6 +579,12 @@ sycl_alltoall_tune_attr alltoall_select_tune_attr(size_t size,
     }
     if (ccl::global_data::env().sycl_alltoall_scaleout_algo == "pairwise") {
         return { alltoall_scaleout_algo::pairwise };
+    }
+    if (ccl::global_data::env().sycl_alltoall_scaleout_algo == "gdr-only") {
+        return { alltoall_scaleout_algo::gdr_only };
+    }
+    if (ccl::global_data::env().sycl_alltoall_scaleout_algo == "gdr-only-pairwise") {
+        return { alltoall_scaleout_algo::gdr_only_pairwise };
     }
     CCL_THROW("unsupported selection");
 }
