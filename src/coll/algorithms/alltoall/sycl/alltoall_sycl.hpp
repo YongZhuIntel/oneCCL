@@ -40,6 +40,24 @@ ccl::event alltoall_sycl(sycl::queue& q,
                          const alltoall_attr& attr,
                          const vector_class<event>& deps,
                          bool& done);
+
+void alltoall_sycl_single_node_onestep_init(const void *src,
+                         void *dst,
+                         size_t count,
+                         ccl::datatype dtype,
+                         ccl_comm *comm,
+                         ccl_stream *global_stream);
+
+sycl::event alltoall_sycl_single_node_onestep(const void *src,
+                         void *dst,
+                         int dst_rank,
+                         int step,
+                         size_t count,
+                         ccl::datatype dtype,
+                         ccl_comm *comm,
+                         ccl_stream *global_stream);
+
+
 } // namespace v1
 } // namespace ccl
 

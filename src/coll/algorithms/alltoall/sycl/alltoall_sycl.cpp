@@ -107,6 +107,26 @@ ccl::event alltoall_sycl_single_node(sycl::queue& q,
     return e;
 }
 
+void alltoall_sycl_single_node_onestep_init(const void *src,
+                         void *dst,
+                         size_t count,
+                         ccl::datatype dtype,
+                         ccl_comm *comm,
+                         ccl_stream *global_stream) {
+    return arc_alltoall_init(src,dst,count,dtype,comm,global_stream);
+}
+
+sycl::event alltoall_sycl_single_node_onestep(const void *src,
+                         void *dst,
+                         int dst_rank,
+                         int step,
+                         size_t count,
+                         ccl::datatype dtype,
+                         ccl_comm *comm,
+                         ccl_stream *global_stream) {
+    return arc_alltoall_onestep(src, dst,dst_rank,step, count, dtype, comm, global_stream);
+}
+
 ccl::event alltoall_sycl_multi_node(sycl::queue& q,
                                     const void* send_buf,
                                     void* recv_buf,
