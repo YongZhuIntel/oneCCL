@@ -299,7 +299,7 @@ ccl::event alltoall_sycl_pairwise_rdma_test(sycl::queue& q,
     sycl::event out_e;
     sycl::event up_e;
     int k=1;
-    for (int i = 1; i < world; i++) {
+    for (int i = 1; i < alltoall_step_table[rank].size() +1 ; i++) {
         int src, dst;
 /*        if (pof2) {
             src = dst = rank ^ i;
@@ -311,9 +311,9 @@ ccl::event alltoall_sycl_pairwise_rdma_test(sycl::queue& q,
 */
        src = dst = alltoall_step_table[rank][i-1];
 
-       //std::cout  << ", rank: " << rank <<  ", step: " << i <<  ", dst: " << dst << std::endl;
+//       std::cout  << "rank: " << rank <<  ", step: " << i <<  ", dst: " << dst <<  ", k: " << k<< std::endl;
 
-       if (local_ar[dst] == 1) {
+       if (dst >=0 && local_ar[dst] == 1) {
             up_e = alltoall_sycl_single_node_onestep((char*)send_buf + first_node_rank * size,
                                                      (char*)recv_buf  + first_node_rank * size,
                                                      dst - first_node_rank,
@@ -326,28 +326,28 @@ ccl::event alltoall_sycl_pairwise_rdma_test(sycl::queue& q,
         h.depends_on(dep_events);
         h.host_task([=]() {
                 atl_req_t send_req, recv_req;
-                if (local_ar[dst] == 0) {
+                if (dst >=0 && local_ar[dst] == 0) {
                     ATL_CALL_THROW_IF_ERROR(atl_comm->send(
                         ep_idx, (char*)send_buf + dst * size, size, dst, tag + i, send_req));
                 }
-                if (local_ar[src] == 0) {
+                if (src >=0 && local_ar[src] == 0) {
                     ATL_CALL_THROW_IF_ERROR(atl_comm->recv(
                         ep_idx, (char*)recv_buf + src * size, size, src, tag + i, recv_req));
                 }
-                if (local_ar[dst] == 0) {
+                if (dst >=0 && local_ar[dst] == 0) {
                     ATL_CALL_THROW_IF_ERROR(atl_comm->wait(ep_idx, send_req));
                 }
-                if (local_ar[src] == 0) {
+                if (src >=0 && local_ar[src] == 0) {
                     ATL_CALL_THROW_IF_ERROR(atl_comm->wait(ep_idx, recv_req));
                 }
-               if (local_ar[src] == 0) {
+//               if (src >=0 && local_ar[src] == 0) {
                     atl_req_t req;
                     ATL_CALL_THROW_IF_ERROR(atl_comm->barrier(ep_idx, req));
                    ATL_CALL_THROW_IF_ERROR(atl_comm->check(ep_idx, req));
                    if (!req.is_completed) {
                        ATL_CALL_THROW_IF_ERROR(atl_comm->wait(ep_idx, req));
                    }
-                }
+//                }
         });
     });
 
