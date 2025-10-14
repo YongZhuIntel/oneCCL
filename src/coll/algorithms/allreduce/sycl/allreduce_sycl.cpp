@@ -80,12 +80,37 @@ ccl::event allreduce_sycl_single_node(sycl::queue& q,
             return e;
         }
         if (!ccl::global_data::env().sycl_enable_arc_allreduce) {
-            LOG_DEBUG("invoking allreduce LL256 kernel allreduce_ll_ring, count:",
-                      count,
-                      " datatype: ",
-                      dtype);
-            e = allreduce_ll_ring(
-                send_buf, recv_buf, count, dtype, reduction, global_comm, global_stream, done);
+            const size_t chunk_size = ccl::global_data::env().sycl_allreduce_chunking_threshold;
+            size_t max_pack_count;
+            if (chunk_size == 0 || count * ccl_dtype.size() <= chunk_size) {
+                max_pack_count = count;
+            }
+            else {
+                max_pack_count = chunk_size;
+                int typesize = std::max(4, (int)ccl_dtype.size());
+                max_pack_count = max_pack_count / typesize * typesize;
+                max_pack_count = max_pack_count / ccl_dtype.size();
+                CCL_ASSERT(max_pack_count > 0);
+            }
+
+            size_t send_offset = 0;
+            int nchunks = (count + max_pack_count - 1) / max_pack_count;
+            for (int iter = 0; iter < nchunks; iter++) {
+                size_t pack_count = (iter < nchunks - 1) ? max_pack_count : count - send_offset;
+                LOG_DEBUG("invoking allreduce LL256 kernel allreduce_ll_ring, count:",
+                          pack_count,
+                          " datatype: ",
+                          dtype);
+                e = allreduce_ll_ring((char*)send_buf + send_offset * ccl_dtype.size(),
+                                      (char*)recv_buf + send_offset * ccl_dtype.size(),
+                                      pack_count,
+                                      dtype,
+                                      reduction,
+                                      global_comm,
+                                      global_stream,
+                                      done);
+                send_offset += pack_count;
+            } // end for
             if (done) {
                 LOG_DEBUG("invoking allreduce LL256 kernel, count:",
                           count,
