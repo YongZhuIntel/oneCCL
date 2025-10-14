@@ -232,6 +232,7 @@ public:
     std::string sycl_allreduce_scaleout_algo;
     bool sycl_enable_arc_allreduce;
     size_t sycl_allreduce_ll_threshold;
+    size_t sycl_allreduce_chunking_threshold;
 
     bool sycl_reduce_scatter_tmp_buf;
     size_t sycl_reduce_scatter_small_threshold;
