@@ -308,6 +308,18 @@ ccl::event alltoall_scaleout_sycl(sycl::queue& q,
                                                    false /* batch_node */,
                                                    done);
             return e;
+        case alltoall_scaleout_algo::numa_gdr_only:
+            e = alltoall_sycl_numa_pairwise_rdma_oneshot(q,
+                                                 send_buf,
+                                                 recv_buf,
+                                                 count,
+                                                 dtype,
+                                                 comm,
+                                                 global_stream,
+                                                 deps,
+                                                 true /* batch_node */,
+                                                 done);
+            return e;
         case alltoall_scaleout_algo::test:
               e = alltoall_sycl_pairwise_rdma_test(
                 q, send_buf, recv_buf, count, dtype, comm, global_stream, deps, done);

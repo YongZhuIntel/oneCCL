@@ -292,12 +292,13 @@ void ccl_comm::create_topo_subcomms(std::shared_ptr<atl_base_comm> atl_comm) {
 
     // Calculate NUMA color and r2r color
     int ranks_per_numa = node_size / numa_nodes_per_host;
-    int numa_color = local_rank / ranks_per_numa;
+    int numa_color = atl_comm->get_rank() / ranks_per_numa;
     int r2r_color = local_rank % numa_nodes_per_host; // Assuming one NIC per NUMA node
 
     // Create numa_comm: ranks that share a NUMA node
     if (numa_nodes_per_host > 1 && ranks_per_numa > 0) {
-        // Use node_comm to create sub-communicators based on NUMA topology
+#if 0
+       // Use node_comm to create sub-communicators based on NUMA topology
         std::shared_ptr<atl_base_comm> numa_atl_comm = node_comm->get_atl_comm()->comm_split(numa_color, local_rank);
         numa_comm = std::shared_ptr<ccl_comm>(new ccl_comm(
             numa_atl_comm->get_comm_id(), numa_atl_comm, true /*share_resources*/, true /*subcomm*/));
@@ -308,6 +309,10 @@ void ccl_comm::create_topo_subcomms(std::shared_ptr<atl_base_comm> atl_comm) {
         numa_r2r_comm = std::shared_ptr<ccl_comm>(new ccl_comm(
             numa_r2r_atl_comm->get_comm_id(), numa_r2r_atl_comm, true /*share_resources*/, true /*subcomm*/));
         numa_r2r_comm->set_parent_comm(this);
+#endif
+        numa_comm = std::shared_ptr<ccl_comm>(create_subcomm(numa_color));
+
+        numa_r2r_comm = std::shared_ptr<ccl_comm>(create_subcomm(r2r_color));
 
         // Debug: Show all ranks in NUMA communicators in global coordinates
         std::string numa_comm_ranks = "";

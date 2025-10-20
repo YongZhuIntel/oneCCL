@@ -58,12 +58,23 @@ sycl::event arc_ll256_alltoall(const void *src,
                                 size_t count,
                                 ccl::datatype dtype,
                                 ccl_comm *comm,
+                                bool is_numa_comm,
                                 ccl_stream *global_stream) {
     sycl::event sycl_e;
 
     std::shared_ptr<ccl_comm> node_comm = comm->get_node_comm();
-    const int comm_size = node_comm->size();
-    const int comm_rank = node_comm->rank();
+
+    int comm_size, comm_rank;
+    std::shared_ptr<ccl_comm> subcomm;
+
+    if (!is_numa_comm) {
+        subcomm = comm->get_node_comm();
+    }
+    else {
+        subcomm = comm->get_numa_comm();
+    }
+    comm_size = subcomm->size();
+    comm_rank = subcomm->rank();
 
     //std::cout << "enter " << __func__ << ", rank: " << comm_rank <<  ", count: " << count << std::endl;
 
@@ -137,7 +148,12 @@ sycl::event arc_ll256_alltoall(const void *src,
 
             // use large kernel persistent buffers
             for (int i = 0; i < local_world_size; i++) {
-                local_peer_bufs[i] = (char *)get_remote_node_tmp_buf(0, comm)[i];
+                if (!is_numa_comm) {
+                    local_peer_bufs[i] = (char *)get_remote_node_tmp_buf(0, comm)[i];
+                }
+                else {
+                    local_peer_bufs[i] = (char *)get_remote_numa_tmp_buf(0, comm)[i];
+                }
             }
             //char *local_tmp_buf = local_peer_bufs[local_world_rank];
             char *local_tmp_buf = (char *)get_tmp_buf(0, comm);
@@ -313,6 +329,7 @@ sycl::event arc_ll256_alltoall_sync(const void *src,
                                 size_t count,
                                 ccl::datatype dtype,
                                 ccl_comm *comm,
+                                bool is_numa_comm,
                                 ccl_stream *global_stream) {
     sycl::event sycl_e;
 
@@ -840,15 +857,16 @@ ccl::event arc_alltoall(const void *src,
                          size_t count,
                          ccl::datatype dtype,
                          ccl_comm *comm,
+                         bool is_numa_comm,
                          ccl_stream *global_stream) {
 #if 1
     coll_init(comm, global_stream);
 
     sycl::event e;
     if (ccl::global_data::env().sycl_enable_arc_alltoall_ll_sync) {
-        e = arc_ll256_alltoall_sync(src, dst, count, dtype, comm, global_stream);
+        e = arc_ll256_alltoall_sync(src, dst, count, dtype, comm, is_numa_comm,global_stream);
     } else {
-        e = arc_ll256_alltoall(src, dst, count, dtype, comm, global_stream);
+        e = arc_ll256_alltoall(src, dst, count, dtype, comm, is_numa_comm,global_stream);
     }
 
     return ccl::event::create_from_native(e);
