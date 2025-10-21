@@ -59,6 +59,7 @@ sycl::event arc_ll256_alltoall(const void *src,
                                 ccl::datatype dtype,
                                 ccl_comm *comm,
                                 bool is_numa_comm,
+                                int split_numa,
                                 ccl_stream *global_stream) {
     sycl::event sycl_e;
 
@@ -135,12 +136,23 @@ sycl::event arc_ll256_alltoall(const void *src,
     }
     size_t submit_loop = (count  + max_submit_count - 1) / max_submit_count;
 
+    int all_steps = comm_size;
+    if (split_numa > 0) {
+        int numa_size = comm->get_numa_comm()->size();
+        int numa_rank = comm->get_numa_comm()->rank();
+        if (numa_rank < split_numa)
+            all_steps = numa_size + split_numa;
+        else
+           all_steps = numa_size;
+    }
+
     for (int i_s = 0;i_s < submit_loop;i_s++) {
         sycl_e = q.submit([&](auto &h) {
             //using namespace sycl::ext::intel::experimental::esimd;
 
             int local_world_rank = comm_rank;
             int local_world_size = comm_size;
+            int local_all_steps = all_steps;
 
             int next_rank = (local_world_rank + 1) % local_world_size;
 
@@ -271,7 +283,7 @@ sycl::event arc_ll256_alltoall(const void *src,
 
                         if (group_id < req_workgroups) {
 
-                            for (int k = 1; k < local_world_size; k++) {
+                            for (int k = 1; k < local_all_steps; k++) {
                                 pattern_t pattern = pattern_prefix + (i<<8) + k;
 
                                 int next_rank = local_world_rank ^ k;
@@ -330,6 +342,7 @@ sycl::event arc_ll256_alltoall_sync(const void *src,
                                 ccl::datatype dtype,
                                 ccl_comm *comm,
                                 bool is_numa_comm,
+                                int split_numa,
                                 ccl_stream *global_stream) {
     sycl::event sycl_e;
 
@@ -408,7 +421,25 @@ sycl::event arc_ll256_alltoall_sync(const void *src,
     }
     size_t submit_loop = (count  + max_submit_count - 1) / max_submit_count;
 
-    for (int k = 1; k < comm_size; k++) {
+    int all_steps = comm_size;
+    int max_steps = comm_size;
+    if (split_numa > 0) {
+        int numa_size = comm->get_numa_comm()->size();
+        int numa_rank = comm->get_numa_comm()->rank();
+        max_steps = numa_size + split_numa;
+        if (numa_rank < split_numa)
+            all_steps = numa_size + split_numa;
+        else
+           all_steps = numa_size;
+    }
+
+    for (int k = 1; k < max_steps; k++) {
+        if (split_numa > 0) {
+            if (k >= all_steps) {
+                sycl_e = invoke_barrier(node_comm, q, { sycl_e }, is_cpu_barrier);
+                continue;
+            }
+        }
         for (int i_s = 0;i_s < submit_loop;i_s++) {
             sycl_e = q.submit([&](auto &h) {
                 //using namespace sycl::ext::intel::experimental::esimd;
@@ -874,15 +905,16 @@ ccl::event arc_alltoall(const void *src,
                          ccl::datatype dtype,
                          ccl_comm *comm,
                          bool is_numa_comm,
+                         int split_numa,
                          ccl_stream *global_stream) {
 #if 1
     coll_init(comm, global_stream);
 
     sycl::event e;
     if (ccl::global_data::env().sycl_enable_arc_alltoall_ll_sync) {
-        e = arc_ll256_alltoall_sync(src, dst, count, dtype, comm, is_numa_comm,global_stream);
+        e = arc_ll256_alltoall_sync(src, dst, count, dtype, comm, is_numa_comm, split_numa, global_stream);
     } else {
-        e = arc_ll256_alltoall(src, dst, count, dtype, comm, is_numa_comm,global_stream);
+        e = arc_ll256_alltoall(src, dst, count, dtype, comm, is_numa_comm, split_numa, global_stream);
     }
 
     return ccl::event::create_from_native(e);

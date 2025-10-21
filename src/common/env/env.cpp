@@ -223,6 +223,7 @@ env_data::env_data()
           sycl_pt2pt_read(0),
           sycl_max_pipeline_chunk_size(32 * 1024 * 1024),
           sycl_pipeline_chunk_size(CCL_ENV_SIZET_NOT_SPECIFIED),
+          sycl_numa_nodes_split(0),
           sycl_enable_pipeline_gpu_rdma(0),
           sycl_enable_direct_gpu_rdma(0),
           sycl_sub_communicator(1),
@@ -589,6 +590,7 @@ void env_data::parse() {
     p.env_2_type(CCL_SYCL_PT2PT_READ, sycl_pt2pt_read);
     p.env_2_type(CCL_SYCL_MAX_PIPELINE_CHUNK_SIZE, sycl_max_pipeline_chunk_size);
     p.env_2_type(CCL_SYCL_PIPELINE_CHUNK_SIZE, (size_t&)sycl_pipeline_chunk_size);
+    p.env_2_type(CCL_SYCL_NUMA_NODES_SPLIT, sycl_numa_nodes_split);
     p.env_2_type(CCL_SYCL_ENABLE_PIPELINE_GPU_RDMA, sycl_enable_pipeline_gpu_rdma);
     p.env_2_type(CCL_SYCL_ENABLE_DIRECT_GPU_RDMA, sycl_enable_direct_gpu_rdma);
     p.env_2_type(CCL_SYCL_SUB_COMMUICATOR, sycl_sub_communicator);
@@ -1046,6 +1048,7 @@ void env_data::print(int rank, bool is_mt_enabled) {
     LOG_INFO(CCL_SYCL_PT2PT_READ, ": ", sycl_pt2pt_read);
     LOG_INFO(CCL_SYCL_MAX_PIPELINE_CHUNK_SIZE, ": ", sycl_max_pipeline_chunk_size);
     LOG_INFO(CCL_SYCL_PIPELINE_CHUNK_SIZE, ": ", (sycl_pipeline_chunk_size != CCL_ENV_SIZET_NOT_SPECIFIED) ? std::to_string(sycl_pipeline_chunk_size) : CCL_ENV_STR_NOT_SPECIFIED);
+    LOG_INFO(CCL_SYCL_NUMA_NODES_SPLIT, ": ", sycl_numa_nodes_split);
     LOG_INFO(CCL_SYCL_ENABLE_PIPELINE_GPU_RDMA, ": ", sycl_enable_pipeline_gpu_rdma);
     LOG_INFO(CCL_SYCL_ENABLE_DIRECT_GPU_RDMA, ": ", sycl_enable_direct_gpu_rdma);
     LOG_INFO(CCL_SYCL_SUB_COMMUICATOR, ": ", sycl_sub_communicator);

@@ -27,6 +27,7 @@ ccl::event alltoall_sycl_single_node(sycl::queue& q,
                                      ccl::datatype dtype,
                                      ccl_comm* comm,
                                      bool is_numa_comm,
+                                     int split_numa,
                                      ccl_stream* global_stream,
                                      const vector_class<event>& deps,
                                      bool& done);

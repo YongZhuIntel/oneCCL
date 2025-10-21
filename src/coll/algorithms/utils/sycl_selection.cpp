@@ -590,6 +590,9 @@ sycl_alltoall_tune_attr alltoall_select_tune_attr(size_t size,
     if (ccl::global_data::env().sycl_alltoall_scaleout_algo == "numa-gdr-only") {
         return { alltoall_scaleout_algo::numa_gdr_only };
     }
+    if (ccl::global_data::env().sycl_alltoall_scaleout_algo == "numa-gdr-split") {
+        return { alltoall_scaleout_algo::numa_gdr_split };
+    }
     if (ccl::global_data::env().sycl_alltoall_scaleout_algo == "test") {
         return { alltoall_scaleout_algo::test };
     }

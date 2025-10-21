@@ -26,6 +26,7 @@ ccl::event alltoall_sycl_single_node(sycl::queue& q,
                                      ccl::datatype dtype,
                                      ccl_comm* comm,
                                      bool is_numa_comm,
+                                     int split_numa,
                                      ccl_stream* global_stream,
                                      const vector_class<event>& deps,
                                      bool& done) {
@@ -69,7 +70,7 @@ ccl::event alltoall_sycl_single_node(sycl::queue& q,
 #endif // CCL_ENABLE_ITT
             LOG_DEBUG(
                 "|CCL_SYCL| alltoall selects arc_alltoall, count: ", count, " datatype: ", dtype);
-            e = arc_alltoall(send_buf, recv_buf, count, dtype, comm, is_numa_comm, global_stream);
+            e = arc_alltoall(send_buf, recv_buf, count, dtype, comm, is_numa_comm, split_numa, global_stream);
             LOG_DEBUG("|CCL_SYCL| alltoall selects arc_alltoall, count: ",
                       count,
                       " datatype: ",
@@ -185,7 +186,7 @@ ccl::event alltoall_sycl(sycl::queue& q,
         if (send_buf != recv_buf) {
             LOG_DEBUG("is_single_node");
             return alltoall_sycl_single_node(
-                q, send_buf, recv_buf, count, dtype, comm, false, op_stream, deps, done);
+                q, send_buf, recv_buf, count, dtype, comm, false, 0, op_stream, deps, done);
         }
         else {
             LOG_WARN(
