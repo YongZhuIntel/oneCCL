@@ -95,6 +95,9 @@ ccl::event allgather_sycl_single_node(sycl::queue& q,
 
             int send_offset = 0;
             int nchunks = (send_count + max_pack_count - 1) / max_pack_count;
+	    std::shared_ptr<atl_base_comm> atl_comm = comm->get_atl_comm();
+	    int ep_idx = 0;
+	    sycl::event sycl_e;
             for (int iter = 0; iter < nchunks; iter++) {
                 int pack_count = (iter < nchunks - 1) ? max_pack_count : send_count - send_offset;
                 std::vector<size_t> scaleup_counts(node_size, pack_count);
@@ -122,8 +125,17 @@ ccl::event allgather_sycl_single_node(sycl::queue& q,
                 ccl::profile::itt::task_end();
 #endif // CCL_ENABLE_ITT
                 send_offset += pack_count;
+		// barrier
+		sycl_e = q.submit([=](sycl::handler& h) {
+		      h.host_task([=]() {
+			 atl_req_t req;
+			 ATL_CALL_THROW_IF_ERROR(atl_comm->barrier(ep_idx, req));
+			 ATL_CALL_THROW_IF_ERROR(atl_comm->wait(ep_idx, req));
+		      });
+		});
+
             } // for
-            return e;
+            return ccl::event::create_from_native(sycl_e);;
         }
         CCL_THROW_IF_NOT(ccl::global_data::env().sycl_ccl_barrier,
                          "To run on BMG, CCL_SYCL_CCL_BARRIER must be set to 1");
