@@ -182,7 +182,7 @@ env_data::env_data()
           sycl_allreduce_scaleout_algo("auto"),
           sycl_enable_arc_allreduce(0),
           sycl_allreduce_ll_threshold(4096),
-          sycl_allreduce_chunking_threshold(0),
+          sycl_allreduce_chunking_threshold(134217728),
 
           sycl_reduce_scatter_tmp_buf(0),
           sycl_reduce_scatter_small_threshold(2097152),
@@ -197,12 +197,12 @@ env_data::env_data()
           sycl_allgatherv_scaleout_threshold(4294967296),
           sycl_allgatherv_ll_threshold(2048),
           sycl_allgatherv_scaleout_algo("auto"),
-          sycl_allgatherv_chunking_threshold(0),
+          sycl_allgatherv_chunking_threshold(67108864),
 
           sycl_alltoall_scaleout_algo("auto"),
           sycl_enable_arc_alltoall_ll(1),
           sycl_enable_arc_alltoall_ll_sync(0),
-          sycl_alltoall_ll_chunk_threshold(0),
+          sycl_alltoall_ll_chunk_threshold(8388608),
           sycl_alltoall_disable_scaleup(0),
 
           enable_sycl_kernels(1),
