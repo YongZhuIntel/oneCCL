@@ -191,7 +191,7 @@ env_data::env_data()
           sycl_reduce_scatter_scaleout_algo("auto"),
           sycl_reduce_scatter_ll_threshold(512),
 
-          sycl_allgatherv_tmp_buf(0),
+          sycl_allgatherv_tmp_buf(1),
           sycl_allgatherv_small_threshold(131072),
           sycl_allgatherv_medium_threshold(2097152),
           sycl_allgatherv_scaleout_threshold(4294967296),
