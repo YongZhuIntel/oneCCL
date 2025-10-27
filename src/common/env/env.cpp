@@ -200,7 +200,7 @@ env_data::env_data()
           sycl_allgatherv_chunking_threshold(0),
 
           sycl_alltoall_scaleout_algo("auto"),
-          sycl_enable_arc_alltoall_ll(0),
+          sycl_enable_arc_alltoall_ll(1),
           sycl_enable_arc_alltoall_ll_sync(0),
           sycl_alltoall_ll_chunk_threshold(0),
           sycl_alltoall_disable_scaleup(0),
