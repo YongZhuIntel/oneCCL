@@ -60,6 +60,7 @@ sycl::event arc_ll256_alltoall(const void *src,
                                 ccl_comm *comm,
                                 bool is_numa_comm,
                                 int split_numa,
+				int split_mode,
                                 ccl_stream *global_stream) {
     sycl::event sycl_e;
 
@@ -140,7 +141,7 @@ sycl::event arc_ll256_alltoall(const void *src,
     if (split_numa > 0) {
         int numa_size = comm->get_numa_comm()->size();
         int numa_rank = comm->get_numa_comm()->rank();
-        if (numa_rank < split_numa)
+        if (numa_rank < split_numa || split_mode ==1)
             all_steps = numa_size + split_numa;
         else
            all_steps = numa_size;
@@ -343,6 +344,7 @@ sycl::event arc_ll256_alltoall_sync(const void *src,
                                 ccl_comm *comm,
                                 bool is_numa_comm,
                                 int split_numa,
+				int split_mode,
                                 ccl_stream *global_stream) {
     sycl::event sycl_e;
 
@@ -427,7 +429,7 @@ sycl::event arc_ll256_alltoall_sync(const void *src,
         int numa_size = comm->get_numa_comm()->size();
         int numa_rank = comm->get_numa_comm()->rank();
         max_steps = numa_size + split_numa;
-        if (numa_rank < split_numa)
+        if (numa_rank < split_numa || split_mode ==1)
             all_steps = numa_size + split_numa;
         else
            all_steps = numa_size;
@@ -906,15 +908,16 @@ ccl::event arc_alltoall(const void *src,
                          ccl_comm *comm,
                          bool is_numa_comm,
                          int split_numa,
+			 int split_mode,
                          ccl_stream *global_stream) {
 #if 1
     coll_init(comm, global_stream);
 
     sycl::event e;
     if (ccl::global_data::env().sycl_enable_arc_alltoall_ll_sync) {
-        e = arc_ll256_alltoall_sync(src, dst, count, dtype, comm, is_numa_comm, split_numa, global_stream);
+        e = arc_ll256_alltoall_sync(src, dst, count, dtype, comm, is_numa_comm, split_numa, split_mode, global_stream);
     } else {
-        e = arc_ll256_alltoall(src, dst, count, dtype, comm, is_numa_comm, split_numa, global_stream);
+        e = arc_ll256_alltoall(src, dst, count, dtype, comm, is_numa_comm, split_numa, split_mode, global_stream);
     }
 
     return ccl::event::create_from_native(e);
