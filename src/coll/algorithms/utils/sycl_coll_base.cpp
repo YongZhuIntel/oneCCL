@@ -1,12 +1,12 @@
 /*
  Copyright 2016-2020 Intel Corporation
- 
+
  Licensed under the Apache License, Version 2.0 (the "License");
  you may not use this file except in compliance with the License.
  You may obtain a copy of the License at
- 
+
      http://www.apache.org/licenses/LICENSE-2.0
- 
+
  Unless required by applicable law or agreed to in writing, software
  distributed under the License is distributed on an "AS IS" BASIS,
  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -236,7 +236,6 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
         std::shared_ptr<ccl_comm> pair_comm = comm->get_pair_comm();
         std::vector<std::shared_ptr<ccl_comm>> sub_comms{ node_comm, numa_comm, even_comm, pair_comm };
         ccl_large_tmp_bufs &comm_large_tmp_bufs = node_comm->get_large_tmp_bufs();
-
         sycl::queue q = global_stream->get_native_stream();
         sycl::queue q_worker(q.get_device());
 
@@ -271,7 +270,7 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
             else {
                 sync_ptrs = sycl::malloc_host<size_t>(ccl_kernel_barrier_data::slots, q);
             }
-
+            LOG_DEBUG("RL: rank: ", node_comm->rank(),  " kernel_barrier_data sync_ptrs ", sync_ptrs );
             // Initialize memory to zero using memset
             q.memset(sync_ptrs, 0, ccl_kernel_barrier_data::slots * sizeof(size_t)).wait();
 
@@ -291,10 +290,11 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
                           2097152 - 1) /
                          2097152 * 2097152);
             }
+            LOG_DEBUG("RL: rank: ", node_comm->rank(),  " sycl_tmp_buf_size: ", ccl::global_data::env().sycl_tmp_buf_size);
             const size_t tmp_buf_size = ccl::global_data::env().sycl_tmp_buf_size / tmp_bufs_count;
             const size_t tmp_buf_size_per_rank_orig =
                 tmp_buf_size / ccl::global_data::get().get_local_proc_count();
-
+            LOG_DEBUG("RL: rank: ", node_comm->rank(),  " tmp_buf_size: ", tmp_buf_size, " tmp_buf_size_per_rank_orig: ", tmp_buf_size_per_rank_orig);
             // adjust tmp_buf_size_per_rank to align in all ranks
             const size_t align_bytes = ccl::global_data::env().kernel_mem_align;
             tmp_buf_size_per_rank = (tmp_buf_size_per_rank_orig / align_bytes) * align_bytes;
@@ -311,6 +311,7 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
 
             for (int i = 0; i < tmp_bufs_count; i++) {
                 tmp_bufs[i] = tmp_buf + i * tmp_buf_size;
+                LOG_DEBUG("RL: rank: ", node_comm->rank(),  " tmp_bufs[", i, "] : ", tmp_bufs[i] );
             }
         }
 
@@ -332,6 +333,7 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
         for (int i = 0; i < ccl_tmp_bufs::buf_count; i++) {
             void *tmp_buf_ptr = tmp_buf + i * ccl_tmp_bufs::buf_size;
             node_comm->set_tmp_buf(tmp_buf_ptr, i);
+            LOG_DEBUG("RL: rank: ", node_comm->rank(),  " node_comm->tmp_buf_ptr[", i, "] : ", tmp_buf_ptr );
             ipc_ptrs.push_back(tmp_buf_ptr);
         }
 
@@ -349,6 +351,9 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
                 auto remote_ptrs = get_ipc_ptrs<size_t, MAX_NODE_RANKS>(
                     sub_comms[i], i, ipc_ptrs[i], ipc_handle_map, q_worker, q.get_device(), 1);
                 sub_comms[i]->set_barrier_ptrs(remote_ptrs);
+                // for (auto ptr : remote_ptrs) {
+                //     LOG_DEBUG("RL: rank: ", node_comm->rank(),  " sub_comms->set_barrier_ptrs[", i, "] : ", ptr);
+                // }
             }
 
             // get ipc pointers for small tmp buffers and add them to node_comm
@@ -356,6 +361,7 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
                 auto remote_ptrs = get_ipc_ptrs<void, MAX_NODE_RANKS>(
                     node_comm, j, ipc_ptrs[j], ipc_handle_map, q_worker, q.get_device(), 1);
                 node_comm->set_remote_tmp_bufs(remote_ptrs, i);
+
             }
 
             for (size_t i = 0, j = large_buf_ipc_idx; i < tmp_bufs.size(); i++, j++) {
@@ -367,13 +373,19 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
                     even_comm, j, ipc_ptrs[j], ipc_handle_map, q_worker, q.get_device(), 1);
                 comm_large_tmp_bufs.remote_pair_tmp_bufs[i] = get_ipc_ptrs<void, MAX_TILES>(
                     pair_comm, j, ipc_ptrs[j], ipc_handle_map, q_worker, q.get_device(), 1);
+                // LOG_DEBUG("RL: rank: ", node_comm->rank(),  " comm_large_tmp_bufs.remote_tmp_bufs[", i, "] : ", comm_large_tmp_bufs.remote_tmp_bufs[i] );
+                // LOG_DEBUG("RL: rank: ", node_comm->rank(),  " comm_large_tmp_bufs.remote_even_tmp_bufs[", i, "] : ", comm_large_tmp_bufs.remote_even_tmp_bufs[i] );
+                // LOG_DEBUG("RL: rank: ", node_comm->rank(),  " comm_large_tmp_bufs.remote_pair_tmp_bufs[", i, "] : ", comm_large_tmp_bufs.remote_pair_tmp_bufs[i] );
             }
 
             q_worker.wait();
         }
         else {
 #endif // CCL_ENABLE_UMF
-
+            for (int i = 0; i < ipc_ptrs.size(); i++) {
+                LOG_DEBUG("RL: rank: ", node_comm->rank(),  " ipc_ptrs[", i, "] : ", ipc_ptrs[i] );
+            }
+            
             LOG_DEBUG("|SCHED|: do_ipc_exchange: with sched");
             auto [sched, exchange_entry] = do_ipc_exchange(comm, global_stream, ipc_ptrs);
 

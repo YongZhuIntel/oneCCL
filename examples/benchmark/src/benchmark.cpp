@@ -380,10 +380,19 @@ int main(int argc, char* argv[]) {
         return -1;
     }
 
-    auto& transport = transport_data::instance();
-    transport.init_comms(options);
 
+    auto& transport = transport_data::instance();
     ccl::communicator& service_comm = transport.get_service_comm();
+    if (service_comm.rank() == 0) {
+        fprintf(stdout, "Process %d: Waiting for debugger to attach...\n", getpid());
+        printf("Please Enter to continue...\n");
+        fflush(stdout);
+        getchar();
+        fprintf(stdout, "Process %d: debugger attached...\n", getpid());
+        fflush(stdout);
+
+    }
+    transport.init_comms(options);
 
     print_user_options(options, service_comm);
 
@@ -412,6 +421,7 @@ int main(int argc, char* argv[]) {
 
     bench_exec_attr bench_attr{};
     bench_attr.init_all();
+
 
     // open and truncate CSV file if csv-output is requested
     if (service_comm.rank() == 0 && !options.csv_filepath.empty()) {
