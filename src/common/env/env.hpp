@@ -273,6 +273,7 @@ public:
     size_t sycl_max_pipeline_chunk_size;
     ssize_t sycl_pipeline_chunk_size;
     size_t sycl_numa_nodes_split;
+    bool sycl_split_numa;
     bool sycl_enable_pipeline_gpu_rdma;
     bool sycl_enable_direct_gpu_rdma;
     bool sycl_sub_communicator;

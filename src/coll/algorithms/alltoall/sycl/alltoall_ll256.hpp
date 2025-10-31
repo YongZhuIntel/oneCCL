@@ -59,21 +59,27 @@ sycl::event arc_ll256_alltoall(const void *src,
                                 ccl::datatype dtype,
                                 ccl_comm *comm,
                                 bool is_numa_comm,
-                                int split_numa,
+                                int numa_split_count,
 				int split_mode,
                                 ccl_stream *global_stream) {
     sycl::event sycl_e;
 
     std::shared_ptr<ccl_comm> node_comm = comm->get_node_comm();
 
-    int comm_size, comm_rank;
+    int comm_size, comm_rank, numa_size, numa_rank;
     std::shared_ptr<ccl_comm> subcomm;
 
+    bool split_numa = ccl::global_data::env().sycl_split_numa;
     if (!is_numa_comm) {
         subcomm = comm->get_node_comm();
     }
     else {
-        subcomm = comm->get_numa_comm();
+        subcomm = numa_split_count ? comm->get_node_comm() : comm->get_numa_comm();
+        if (numa_split_count) {
+            numa_size = comm->get_numa_comm()->size();
+            numa_rank = comm->get_numa_comm()->rank();
+	}
+
     }
     comm_size = subcomm->size();
     comm_rank = subcomm->rank();
@@ -137,23 +143,12 @@ sycl::event arc_ll256_alltoall(const void *src,
     }
     size_t submit_loop = (count  + max_submit_count - 1) / max_submit_count;
 
-    int all_steps = comm_size;
-    if (split_numa > 0) {
-        int numa_size = comm->get_numa_comm()->size();
-        int numa_rank = comm->get_numa_comm()->rank();
-        if (numa_rank < split_numa || split_mode ==1)
-            all_steps = numa_size + split_numa;
-        else
-           all_steps = numa_size;
-    }
-
     for (int i_s = 0;i_s < submit_loop;i_s++) {
         sycl_e = q.submit([&](auto &h) {
             //using namespace sycl::ext::intel::experimental::esimd;
 
             int local_world_rank = comm_rank;
             int local_world_size = comm_size;
-            int local_all_steps = all_steps;
 
             int next_rank = (local_world_rank + 1) % local_world_size;
 
@@ -161,11 +156,11 @@ sycl::event arc_ll256_alltoall(const void *src,
 
             // use large kernel persistent buffers
             for (int i = 0; i < local_world_size; i++) {
-                if (!is_numa_comm) {
+                if (!is_numa_comm || numa_split_count) {
                     local_peer_bufs[i] = (char *)get_remote_node_tmp_buf(0, comm)[i];
                 }
                 else {
-                    local_peer_bufs[i] = (char *)get_remote_numa_tmp_buf(0, comm)[i];
+		    local_peer_bufs[i] = (char *)get_remote_numa_tmp_buf(0, comm)[i];
                 }
             }
             //char *local_tmp_buf = local_peer_bufs[local_world_rank];
@@ -283,8 +278,19 @@ sycl::event arc_ll256_alltoall(const void *src,
     */
 
                         if (group_id < req_workgroups) {
+                            int end;
+                            if (is_numa_comm && numa_split_count) {
+                                end = numa_size;
+                                if (!split_numa)
+                                    end += numa_split_count;
+                                else if (numa_rank < numa_split_count)
+                                    end += numa_split_count;
+                            }
+                            else {
+                                end = local_world_size;
+                            }
 
-                            for (int k = 1; k < local_all_steps; k++) {
+                            for (int k = 1; k < end; k++) {
                                 pattern_t pattern = pattern_prefix + (i<<8) + k;
 
                                 int next_rank = local_world_rank ^ k;
@@ -343,21 +349,27 @@ sycl::event arc_ll256_alltoall_sync(const void *src,
                                 ccl::datatype dtype,
                                 ccl_comm *comm,
                                 bool is_numa_comm,
-                                int split_numa,
+                                int numa_split_count,
 				int split_mode,
                                 ccl_stream *global_stream) {
     sycl::event sycl_e;
 
     std::shared_ptr<ccl_comm> node_comm = comm->get_node_comm();
 
-    int comm_size, comm_rank;
+    int comm_size, comm_rank, numa_size, numa_rank;
     std::shared_ptr<ccl_comm> subcomm;
 
+    bool split_numa = ccl::global_data::env().sycl_split_numa;
     if (!is_numa_comm) {
         subcomm = comm->get_node_comm();
     }
     else {
-        subcomm = comm->get_numa_comm();
+        subcomm = numa_split_count ? comm->get_node_comm() : comm->get_numa_comm();
+        if (numa_split_count) {
+            numa_size = comm->get_numa_comm()->size();
+            numa_rank = comm->get_numa_comm()->rank();
+        }
+
     }
     comm_size = subcomm->size();
     comm_rank = subcomm->rank();
@@ -422,7 +434,7 @@ sycl::event arc_ll256_alltoall_sync(const void *src,
            max_submit_count = count;
     }
     size_t submit_loop = (count  + max_submit_count - 1) / max_submit_count;
-
+/*
     int all_steps = comm_size;
     int max_steps = comm_size;
     if (split_numa > 0) {
@@ -434,10 +446,24 @@ sycl::event arc_ll256_alltoall_sync(const void *src,
         else
            all_steps = numa_size;
     }
+*/
+    int max_steps = comm_size;
+    int end;
+    if (is_numa_comm && numa_split_count) {
+        end = numa_size;
+	max_steps = numa_size + numa_split_count;
+        if (!split_numa)
+            end += numa_split_count;
+        else if (numa_rank < numa_split_count)
+            end += numa_split_count;
+        }
+     else {
+         end = comm_size;
+     }
 
     for (int k = 1; k < max_steps; k++) {
-        if (split_numa > 0) {
-            if (k >= all_steps) {
+        if (numa_split_count > 0) {
+            if (k >= end) {
                 sycl_e = invoke_barrier(node_comm, q, { sycl_e }, is_cpu_barrier);
                 continue;
             }
@@ -455,7 +481,7 @@ sycl::event arc_ll256_alltoall_sync(const void *src,
 
                 // use large kernel persistent buffers
                 for (int i = 0; i < local_world_size; i++) {
-                    if (!is_numa_comm) {
+                    if (!is_numa_comm || numa_split_count) {
                         local_peer_bufs[i] = (char *)get_remote_node_tmp_buf(0, comm)[i];
                     }
                     else {
@@ -907,7 +933,7 @@ ccl::event arc_alltoall(const void *src,
                          ccl::datatype dtype,
                          ccl_comm *comm,
                          bool is_numa_comm,
-                         int split_numa,
+                         int numa_split_count,
 			 int split_mode,
                          ccl_stream *global_stream) {
 #if 1
@@ -915,9 +941,9 @@ ccl::event arc_alltoall(const void *src,
 
     sycl::event e;
     if (ccl::global_data::env().sycl_enable_arc_alltoall_ll_sync) {
-        e = arc_ll256_alltoall_sync(src, dst, count, dtype, comm, is_numa_comm, split_numa, split_mode, global_stream);
+        e = arc_ll256_alltoall_sync(src, dst, count, dtype, comm, is_numa_comm, numa_split_count, split_mode, global_stream);
     } else {
-        e = arc_ll256_alltoall(src, dst, count, dtype, comm, is_numa_comm, split_numa, split_mode, global_stream);
+        e = arc_ll256_alltoall(src, dst, count, dtype, comm, is_numa_comm, numa_split_count, split_mode, global_stream);
     }
 
     return ccl::event::create_from_native(e);
