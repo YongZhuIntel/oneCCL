@@ -183,7 +183,8 @@ ccl::event alltoall_sycl(sycl::queue& q,
         is_single_node = topo_manager.is_single_node;
     }
 
-    if (is_single_node && ccl::global_data::env().sycl_single_node_algorithm && !ccl::global_data::env().sycl_alltoall_disable_scaleup) {
+    if (is_single_node && ccl::global_data::env().sycl_single_node_algorithm &&
+        ccl::global_data::env().sycl_alltoall_single_node_algorithm) {
         if (send_buf != recv_buf) {
             LOG_DEBUG("is_single_node");
             return alltoall_sycl_single_node(

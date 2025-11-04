@@ -203,7 +203,7 @@ env_data::env_data()
           sycl_enable_arc_alltoall_ll(1),
           sycl_enable_arc_alltoall_ll_sync(0),
           sycl_alltoall_ll_chunk_threshold(8388608),
-          sycl_alltoall_disable_scaleup(0),
+          sycl_alltoall_single_node_algorithm(1),
 
           enable_sycl_kernels(1),
 
@@ -571,7 +571,7 @@ void env_data::parse() {
     p.env_2_type(CCL_SYCL_ALLTOALL_ARC_LL, sycl_enable_arc_alltoall_ll);
     p.env_2_type(CCL_SYCL_ALLTOALL_ARC_LL_SYNC, sycl_enable_arc_alltoall_ll_sync);
     p.env_2_type(CCL_SYCL_ALLTOALL_LL_CHUNK_THRESHOLD, sycl_alltoall_ll_chunk_threshold);
-    p.env_2_type(CCL_SYCL_ALLTOALL_DISABLE_SCALEUP, sycl_alltoall_disable_scaleup);
+    p.env_2_type(CCL_SYCL_ALLTOALL_SINGLE_NODE_ALGORITHM, sycl_alltoall_single_node_algorithm);
 
     p.env_2_type(CCL_ENABLE_SYCL_KERNELS, enable_sycl_kernels);
 
@@ -1030,7 +1030,7 @@ void env_data::print(int rank, bool is_mt_enabled) {
     LOG_INFO(CCL_SYCL_ALLTOALL_ARC_LL, ": ", sycl_enable_arc_alltoall_ll);
     LOG_INFO(CCL_SYCL_ALLTOALL_ARC_LL_SYNC, ": ", sycl_enable_arc_alltoall_ll_sync);
     LOG_INFO(CCL_SYCL_ALLTOALL_LL_CHUNK_THRESHOLD, ": ", sycl_alltoall_ll_chunk_threshold);
-    LOG_INFO(CCL_SYCL_ALLTOALL_DISABLE_SCALEUP, ": ", sycl_alltoall_disable_scaleup);
+    LOG_INFO(CCL_SYCL_ALLTOALL_SINGLE_NODE_ALGORITHM, ": ", sycl_alltoall_single_node_algorithm);
 
     LOG_INFO(CCL_ENABLE_SYCL_KERNELS, ": ", enable_sycl_kernels);
 

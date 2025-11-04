@@ -239,7 +239,7 @@ public:
     bool sycl_enable_arc_alltoall_ll;
     bool sycl_enable_arc_alltoall_ll_sync;
     size_t sycl_alltoall_ll_chunk_threshold;
-    bool sycl_alltoall_disable_scaleup;
+    bool sycl_alltoall_single_node_algorithm;
 
     bool sycl_reduce_scatter_tmp_buf;
     size_t sycl_reduce_scatter_small_threshold;
