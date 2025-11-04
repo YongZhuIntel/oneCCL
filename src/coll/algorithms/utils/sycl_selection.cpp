@@ -556,8 +556,8 @@ static sycl_alltoall_tune_attr alltoall_auto_select_tune_attr(size_t size,
                                                               ccl_datatype ccl_dtype) {
     if (ccl::global_data::env().sycl_enable_direct_gpu_rdma) {
         // for BMG
-        if (size <= 64 * 1024 * 1024)
-            return { alltoall_scaleout_algo::gdr_only };
+        if (size <= 256 * 1024 * 1024)
+            return { alltoall_scaleout_algo::scatter };
         else
             return { alltoall_scaleout_algo::gdr_only_pairwise };
     }
@@ -580,6 +580,9 @@ sycl_alltoall_tune_attr alltoall_select_tune_attr(size_t size,
     }
     if (ccl::global_data::env().sycl_alltoall_scaleout_algo == "pairwise") {
         return { alltoall_scaleout_algo::pairwise };
+    }
+    if (ccl::global_data::env().sycl_alltoall_scaleout_algo == "scatter") {
+        return { alltoall_scaleout_algo::scatter };
     }
     if (ccl::global_data::env().sycl_alltoall_scaleout_algo == "gdr-only") {
         return { alltoall_scaleout_algo::gdr_only };

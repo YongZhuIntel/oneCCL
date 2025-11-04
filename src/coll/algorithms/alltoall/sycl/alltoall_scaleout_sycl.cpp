@@ -284,8 +284,12 @@ ccl::event alltoall_scaleout_sycl(sycl::queue& q,
             e = alltoall_sycl_pairwise_rdma(
                 q, send_buf, recv_buf, count, dtype, comm, global_stream, deps, done);
             return e;
+        case alltoall_scaleout_algo::scatter:
+            e = alltoall_sycl_scatter_rdma(
+                q, send_buf, recv_buf, count, dtype, comm, global_stream, deps, done);
+            return e;
         case alltoall_scaleout_algo::gdr_only:
-            e = alltoall_sycl_global_pairwise_rdma(q,
+            e = alltoall_sycl_global_pairwise_rdma_gdronly(q,
                                                    send_buf,
                                                    recv_buf,
                                                    count,
@@ -297,16 +301,8 @@ ccl::event alltoall_scaleout_sycl(sycl::queue& q,
                                                    done);
             return e;
         case alltoall_scaleout_algo::gdr_only_pairwise:
-            e = alltoall_sycl_global_pairwise_rdma(q,
-                                                   send_buf,
-                                                   recv_buf,
-                                                   count,
-                                                   dtype,
-                                                   comm,
-                                                   global_stream,
-                                                   deps,
-                                                   false /* batch_node */,
-                                                   done);
+            e = alltoall_sycl_global_pairwise_rdma(
+                q, send_buf, recv_buf, count, dtype, comm, global_stream, deps, done);
             return e;
         case alltoall_scaleout_algo::numa_gdr_only:
             e = alltoall_sycl_numa_pairwise_rdma_oneshot(q,
