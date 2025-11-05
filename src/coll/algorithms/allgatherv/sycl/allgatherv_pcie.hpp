@@ -100,7 +100,7 @@ struct AllGather : public Transmit<T, Proto, SubGroupSize> {
         AllGather offload(nranks, input, output, offsets, nelems, rank, step, ipcbuf0, ipcbuf1, peerbuf0, peerbuf1, p2p);
         if (offload.workSize == 0) {
             done = false;
-            return e;
+            return e; 
         }
         done = true;
 

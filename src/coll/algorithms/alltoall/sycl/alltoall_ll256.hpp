@@ -168,9 +168,13 @@ sycl::event arc_ll256_alltoall(const void *src,
                     local_peer_bufs[i] = (char *)get_remote_numa_tmp_buf(0, comm)[i];
                 }
             }
+            for (auto x = 0; x < local_world_size; x++) {
+                LOG_DEBUG("RL: rank: ", comm_rank,  " local_peer_bufs[", x, "] : ", (void*)local_peer_bufs[x] );
+            }
+            LOG_DEBUG("RL: rank: ", comm_rank,  " local_peer_bufs: ", (void*)local_peer_bufs[next_rank] );
             //char *local_tmp_buf = local_peer_bufs[local_world_rank];
             char *local_tmp_buf = (char *)get_tmp_buf(0, comm);
-
+            LOG_DEBUG("RL: rank: ", comm_rank,  " local_tmp_buf: ", (void*)local_tmp_buf );
             /*
              * In a single subgroup:
              *   a> 1 dedicated work-item to manage a LS_SZ-byte pattern.

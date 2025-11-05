@@ -394,6 +394,9 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
                 auto remote_ptrs = get_ipc_ptrs<size_t, MAX_NODE_RANKS>(
                     sub_comms[i], i, ipc_ptrs[i], sched, q_worker, 1, false /* to_cache */);
                 sub_comms[i]->set_barrier_ptrs(remote_ptrs);
+                for (auto ptr : remote_ptrs) {
+                    LOG_DEBUG("RL: rank: ", node_comm->rank(),  " sub_comms[", i, "]->set_barrier_ptrs[x] : ", ptr);
+                }
             }
             // get ipc pointers for small tmp buffers and add them to node_comm
             for (size_t i = 0, j = small_buf_ipc_idx; i < ccl_tmp_bufs::buf_count; i++, j++) {
@@ -415,8 +418,10 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
             for (int i = 0; i < node_comm->size(); i++) {
                 comm_large_tmp_bufs.remote_tmp_bufs[1][i] =
                     (char *)(comm_large_tmp_bufs.remote_tmp_bufs[0][i]) + tmp_buf_size;
+                LOG_DEBUG("RL: rank: ", node_comm->rank(),  " comm_large_tmp_bufs.remote_tmp_bufs[1][", i, "] : ", comm_large_tmp_bufs.remote_tmp_bufs[1][i] );
                 comm_large_tmp_bufs.remote_tmp_bufs[2][i] =
                     (char *)comm_large_tmp_bufs.remote_tmp_bufs[1][i] + tmp_buf_size;
+                LOG_DEBUG("RL: rank: ", node_comm->rank(),  " comm_large_tmp_bufs.remote_tmp_bufs[2][", i, "] : ", comm_large_tmp_bufs.remote_tmp_bufs[2][i] );
             }
             // numa_comm
             comm_large_tmp_bufs.remote_numa_tmp_bufs[0] =
@@ -430,8 +435,11 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
             for (int i = 0; i < numa_comm->size(); i++) {
                 comm_large_tmp_bufs.remote_numa_tmp_bufs[1][i] =
                     (char *)(comm_large_tmp_bufs.remote_numa_tmp_bufs[0][i]) + tmp_buf_size;
+                LOG_DEBUG("RL: rank: ", node_comm->rank(),  " comm_large_tmp_bufs.remote_numa_tmp_bufs[1][", i, "] : ", comm_large_tmp_bufs.remote_numa_tmp_bufs[1][i] );
+
                 comm_large_tmp_bufs.remote_numa_tmp_bufs[2][i] =
                     (char *)comm_large_tmp_bufs.remote_numa_tmp_bufs[1][i] + tmp_buf_size;
+                LOG_DEBUG("RL: rank: ", node_comm->rank(),  " comm_large_tmp_bufs.remote_numa_tmp_bufs[2][", i, "] : ", comm_large_tmp_bufs.remote_numa_tmp_bufs[2][i] );
             }
             // even_comm
             comm_large_tmp_bufs.remote_even_tmp_bufs[0] =
@@ -445,8 +453,10 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
             for (int i = 0; i < even_comm->size(); i++) {
                 comm_large_tmp_bufs.remote_even_tmp_bufs[1][i] =
                     (char *)(comm_large_tmp_bufs.remote_even_tmp_bufs[0][i]) + tmp_buf_size;
+                LOG_DEBUG("RL: rank: ", node_comm->rank(),  " comm_large_tmp_bufs.remote_even_tmp_bufs[1][", i, "] : ", comm_large_tmp_bufs.remote_even_tmp_bufs[1][i] );
                 comm_large_tmp_bufs.remote_even_tmp_bufs[2][i] =
                     (char *)comm_large_tmp_bufs.remote_even_tmp_bufs[1][i] + tmp_buf_size;
+                LOG_DEBUG("RL: rank: ", node_comm->rank(),  " comm_large_tmp_bufs.remote_even_tmp_bufs[2][", i, "] : ", comm_large_tmp_bufs.remote_even_tmp_bufs[2][i] );
             }
             // pair_comm
             comm_large_tmp_bufs.remote_pair_tmp_bufs[0] =
@@ -460,8 +470,10 @@ void coll_init(ccl_comm *comm, ccl_stream *global_stream) {
             for (int i = 0; i < pair_comm->size(); i++) {
                 comm_large_tmp_bufs.remote_pair_tmp_bufs[1][i] =
                     (char *)(comm_large_tmp_bufs.remote_pair_tmp_bufs[0][i]) + tmp_buf_size;
+                LOG_DEBUG("RL: rank: ", node_comm->rank(),  " comm_large_tmp_bufs.remote_pair_tmp_bufs[1][", i, "] : ", comm_large_tmp_bufs.remote_pair_tmp_bufs[1][i] );
                 comm_large_tmp_bufs.remote_even_tmp_bufs[2][i] =
                     (char *)comm_large_tmp_bufs.remote_pair_tmp_bufs[1][i] + tmp_buf_size;
+                LOG_DEBUG("RL: rank: ", node_comm->rank(),  " comm_large_tmp_bufs.remote_pair_tmp_bufs[2][", i, "] : ", comm_large_tmp_bufs.remote_pair_tmp_bufs[2][i] );
             }
 
             q_worker.wait();
