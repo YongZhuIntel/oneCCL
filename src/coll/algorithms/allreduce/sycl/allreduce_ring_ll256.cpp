@@ -209,9 +209,6 @@ sycl::event arc_ll256_allreduce(const void *src,
     /* To avoid pattern not changed when "iters" is 1 */
     pattern_t pattern_prefix = ++pattern_counter << 16;
 
-    size_t persist_buf_size = ccl::global_data::env().sycl_tmp_buf_size / 3;
-    const int GATHER_BUF_OFFSET = persist_buf_size / 2;
-
     sycl_e = q.submit([&](auto &h) {
         //using namespace sycl::ext::intel::experimental::esimd;
 
@@ -222,17 +219,22 @@ sycl::event arc_ll256_allreduce(const void *src,
 
         char *local_peer_bufs[ARC_MAX_NUM];
 #if 0
-        auto [local_tmp_buf, remote_ptrs] = node_comm->get_all_tmp_bufs(true);
-        for (int i = 0; i < local_world_size; i++) {
-            local_peer_bufs[i] = (char *)remote_ptrs[i];
-        }
-#else
         // use large kernel persistent buffers
         for (int i = 0; i < local_world_size; i++) {
             local_peer_bufs[i] = (char *)get_remote_node_tmp_buf(0, comm)[i];
         }
         //char *local_tmp_buf = local_peer_bufs[local_world_rank];
         char *local_tmp_buf = (char *)get_tmp_buf(0, comm);
+        size_t persist_buf_size = ccl::global_data::env().sycl_tmp_buf_size / 3;
+        const int GATHER_BUF_OFFSET = persist_buf_size;
+#else
+        // use small kernel persistent buffers
+        auto [local_small_buf, remote_ptrs] = node_comm->get_all_tmp_bufs(true);
+        for (int i = 0; i < local_world_size; i++) {
+            local_peer_bufs[i] = (char *)remote_ptrs[i];
+        }
+        char *local_tmp_buf = (char *)local_small_buf;
+        const int GATHER_BUF_OFFSET = ccl_tmp_bufs::buf_size / 2;
 #endif
 
         /*

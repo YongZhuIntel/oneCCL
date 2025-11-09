@@ -197,7 +197,7 @@ public:
     // next collective we use different buffers on consecutive collectives.
     static constexpr int buf_count = 2;
     // use largest threshold among all the small buffers algorithms
-    static constexpr size_t buf_size = 2097152;
+    static size_t buf_size;
 
     void set_tmp_buf(void* ptr, int idx) {
         tmp_bufs[idx] = ptr;

@@ -47,12 +47,22 @@ ccl::event allreduce_ll_ring(const void *src,
     auto lambda = [&]<typename T, template <typename, int> class Proto>(int NRanks) {
         T *peerbuf0[NRanks];
         T *peerbuf1[NRanks];
+#if 0
         for (int i = 0; i < NRanks; i++) {
             peerbuf0[i] = (T *)get_remote_node_tmp_buf(0, comm)[i];
             peerbuf1[i] = (T *)get_remote_node_tmp_buf(1, comm)[i];
         }
         T *ipcbuf0 = (T *)get_tmp_buf(0, comm);
         T *ipcbuf1 = (T *)get_tmp_buf(1, comm);
+#else
+        auto [local_tmp_buf, remote_ptrs] = node_comm->get_all_tmp_bufs(true);
+        for (int i = 0; i < NRanks; i++) {
+            peerbuf0[i] = (T *)remote_ptrs[i];
+            peerbuf1[i] = (T *)((char *)remote_ptrs[i] + ccl_tmp_bufs::buf_size / 2);
+        }
+        T *ipcbuf0 = (T *)local_tmp_buf;
+        T *ipcbuf1 = (T *)((char *)local_tmp_buf + ccl_tmp_bufs::buf_size / 2);
+#endif
         sycl::event e = AllReduce<T, Proto, RingTransmit>::launch(NRanks,
                                                                   (T *)dst,
                                                                   ipcbuf0,
