@@ -17,15 +17,32 @@ static inline void alltoall_ll256_send(char *src, char *dst, bool load, pattern_
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
     message_t data;
     int sz = sizeof(data);
-
+    // sycl::ext::oneapi::experimental::printf("alltoall_ll256_send: dst %p src %p lid %d left_size %lu data: %p sz %d\n", (void *)dst, (void *)src, lid, left_size, &data, sz);
       if ( (lid * sz < left_size) ) {
           LscLoadCached(data, src);
       }
-
+    sycl::ext::oneapi::experimental::printf("before shuffle_data: dst %p src %p data 0x%08X 0x%08X 0x%08X 0x%08X\n", (void *)dst, (void *)src, data[0], data[1], data[2], data[3]);
     shuffle_data(data);
-
+    sycl::ext::oneapi::experimental::printf("after shuffle_data: dst %p src %p data 0x%08X 0x%08X 0x%08X 0x%08X\n", (void *)dst, (void *)src, data[0], data[1], data[2], data[3]);
     insert_pattern(data, pattern);
+    sycl::ext::oneapi::experimental::printf("after insert_pattern: dst %p src %p data 0x%08X 0x%08X 0x%08X 0x%08X\n", (void *)dst, (void *)src, data[0], data[1], data[2], data[3]);
+    LscStoreUnCached(dst, data);
+#endif
+}
 
+static inline void alltoall_ll256_send_dbg(char *src, char *dst, bool load, pattern_t pattern,int lid,size_t left_size, int sgid, int group_id) {
+#if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+    message_t data;
+    int sz = sizeof(data);
+    // sycl::ext::oneapi::experimental::printf("alltoall_ll256_send: dst %p src %p lid %d left_size %lu data: %p sz %d\n", (void *)dst, (void *)src, lid, left_size, &data, sz);
+      if ( (lid * sz < left_size) ) {
+          LscLoadCached(data, src);
+      }
+    sycl::ext::oneapi::experimental::printf("groupid %d subgid %d lid %d before shuffle_data: dst %p src %p data_ptr %p data 0x%08X 0x%08X 0x%08X 0x%08X\n", group_id, sgid, lid, (void *)dst, (void *)src, &data, data[0], data[1], data[2], data[3]);
+    shuffle_data(data);
+    sycl::ext::oneapi::experimental::printf("groupid %d subgid %d lid %d after shuffle_data: dst %p src %p data_ptr %p data 0x%08X 0x%08X 0x%08X 0x%08X\n", group_id, sgid, lid,(void *)dst, (void *)src, &data, data[0], data[1], data[2], data[3]);
+    insert_pattern(data, pattern);
+    sycl::ext::oneapi::experimental::printf("groupid %d subgid %d lid %d after insert_pattern: dst %p src %p data_ptr %p  data 0x%08X 0x%08X 0x%08X 0x%08X\n",group_id, sgid, lid,(void *)dst, (void *)src, &data, data[0], data[1], data[2], data[3]);
     LscStoreUnCached(dst, data);
 #endif
 }
@@ -600,10 +617,11 @@ sycl::event arc_ll256_alltoall_sync(const void *src,
                                         offset_with_pattern += (k-1) * alltoall_loop_buf_offset /local_world_size ;
 
                                         size_t left_size = count * dt_sz - base;
-                                        alltoall_ll256_send(send_buf + offset + sg_lid * LS_SZ,
+                                        
+                                        alltoall_ll256_send_dbg(send_buf + offset + sg_lid * LS_SZ,
                                                next + offset_with_pattern + sg_lid * LS_SZ,
                                                sg_lid * LS_SZ < left_size,
-                                               pattern,sg_lid,left_size);
+                                               pattern,sg_lid,left_size, sg_id, group_id);
                                     }
 
                                     // step 2:recv data from dest

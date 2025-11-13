@@ -386,7 +386,6 @@ int main(int argc, char* argv[]) {
     if (service_comm.rank() == 0) {
         fprintf(stdout, "Process %d: Waiting for debugger to attach...\n", getpid());
         printf("Please Enter to continue...\n");
-        fflush(stdout);
         getchar();
         fprintf(stdout, "Process %d: debugger attached...\n", getpid());
         fflush(stdout);

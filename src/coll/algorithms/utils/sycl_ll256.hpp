@@ -113,7 +113,7 @@ static inline void shuffle_data(message_t &data) {
                          "mov (M1, 1) %0(3, 7)<1> %0(6, 7)<0;1,0>\n"
                          "mov (M1, 1) %0(5, 7)<1> %0(7, 3)<0;1,0>\n"
                          : "+rw"(reinterpret_cast<typename message_t::vector_t &>(data))
-                         :);
+                         :)
 #else
     __asm__ __volatile__("mov (M1, 1) %0(0, 15)<1> %0(3, 3)<0;1,0>\n"
                          "mov (M1, 1) %0(1, 15)<1> %0(3, 7)<0;1,0>\n"
@@ -178,11 +178,13 @@ static inline void ll256_send(char *src, char *dst, bool load, pattern_t pattern
         LscLoadCached(data, src);
     //data = *(message_t *)src;
 
-    shuffle_data(data);
+    
 
-    //sycl::ext::oneapi::experimental::printf("before shuffle_data: dst %p src %p data 0x%08X 0x%08X 0x%08X 0x%08X\n", (void *)dst, (void *)src, data[0], data[1], data[2], data[3]);
+    sycl::ext::oneapi::experimental::printf("before shuffle_data: dst %p src %p data 0x%08X 0x%08X 0x%08X 0x%08X\n", (void *)dst, (void *)src, data[0], data[1], data[2], data[3]);
+    shuffle_data(data);
+    sycl::ext::oneapi::experimental::printf("after shuffle_data: dst %p src %p data 0x%08X 0x%08X 0x%08X 0x%08X\n", (void *)dst, (void *)src, data[0], data[1], data[2], data[3]);
     insert_pattern(data, pattern);
-    //sycl::ext::oneapi::experimental::printf("after shuffle_data: dst %p src %p data 0x%08X 0x%08X 0x%08X 0x%08X\n", (void *)dst, (void *)src, data[0], data[1], data[2], data[3]);
+  
 
     LscStoreUnCached(dst, data);
     //*(message_t *)dst = data;
