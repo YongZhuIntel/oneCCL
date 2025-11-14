@@ -93,7 +93,7 @@ sycl::event arc_ll256_alltoall(const void *src,
     char *send_buf = static_cast<char *>(const_cast<void *>(src));
 
     if (send_buf != recv_buf)
-        sycl_e = q.memcpy(recv_buf, send_buf, dt_sz * count * comm_size);
+        sycl_e = q.memcpy(recv_buf + dt_sz * count * comm_rank, send_buf + dt_sz * count * comm_rank, dt_sz * count);
 
     /*
      * Intel(R) Arc(TM) A770 Graphics:
@@ -278,6 +278,7 @@ sycl::event arc_ll256_alltoall(const void *src,
     */
 
                         if (group_id < req_workgroups) {
+
                             int end;
                             if (is_numa_comm && numa_split_count) {
                                 end = numa_size;
@@ -385,7 +386,7 @@ sycl::event arc_ll256_alltoall_sync(const void *src,
     char *send_buf = static_cast<char *>(const_cast<void *>(src));
 
     if (send_buf != recv_buf)
-        sycl_e = q.memcpy(recv_buf, send_buf, dt_sz * count * comm_size);
+        sycl_e = q.memcpy(recv_buf + dt_sz * count * comm_rank, send_buf + dt_sz * count * comm_rank, dt_sz * count );
 
     /*
      * Intel(R) Arc(TM) A770 Graphics:

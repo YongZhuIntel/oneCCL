@@ -75,10 +75,10 @@ ccl::event allreduce_sycl_single_node(sycl::queue& q,
 
     // for ARC GPUs to do ring LL256
     if (is_arc_card(ccl::ze::get_device_family(global_stream->get_ze_device()))) {
-        if (!is_aligned(send_buf, recv_buf, 0, 4)) {
+        /*if (!is_aligned(send_buf, recv_buf, 0, 4)) {
             done = false;
             return e;
-        }
+        }*/
         if (!ccl::global_data::env().sycl_enable_arc_allreduce) {
             const size_t chunk_size = ccl::global_data::env().sycl_allreduce_chunking_threshold;
             size_t max_pack_count;
