@@ -90,6 +90,40 @@ extern uint16_t pattern_counter;
 #define LscStoreUnCached __LscStoreUnCachedVec
 
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
+// Tail lanes do not always own a full 16-byte message; load only the bytes backing
+// the active payload and zero-fill the rest so reduction math sees deterministic data.
+static inline message_t ll256_load_message(char *src, size_t valid_bytes) {
+    message_t data = message_t(0);
+
+    if (valid_bytes >= sizeof(message_t)) {
+        LscLoadCached(data, src);
+    }
+    else if (valid_bytes > 0) {
+        sycl::vec<uint8_t, 16> raw((uint8_t)0);
+        auto src_bytes = reinterpret_cast<uint8_t *>(src);
+        for (size_t i = 0; i < valid_bytes; i++) {
+            raw[i] = src_bytes[i];
+        }
+        data = sycl::bit_cast<message_t>(raw);
+    }
+
+    return data;
+}
+
+// Mirror the load semantics when writing: skip empty tails and avoid touching bytes past the limit.
+static inline void ll256_store_message(char *dst, message_t data, size_t valid_bytes) {
+    if (valid_bytes >= sizeof(message_t)) {
+        LscStoreUnCached(dst, data);
+    }
+    else if (valid_bytes > 0) {
+        auto raw = sycl::bit_cast<sycl::vec<uint8_t, 16>>(data);
+        auto dst_bytes = reinterpret_cast<uint8_t *>(dst);
+        for (size_t i = 0; i < valid_bytes; i++) {
+            dst_bytes[i] = raw[i];
+        }
+    }
+}
+
 // load data, and check if arrived
 static inline void sync_data(char *src,
                              message_t &data,
@@ -169,14 +203,23 @@ static inline void ll256_send_data(message_t &src_data, char *dst, pattern_t pat
 #endif
 }
 
-static inline void ll256_send(char *src, char *dst, bool load, pattern_t pattern) {
+static inline void ll256_send(char *src, char *dst, size_t valid_bytes, pattern_t pattern) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
-    message_t data;
+    message_t data = message_t(0);
     int sz = sizeof(data);
 
-    if (load)
+    if (valid_bytes >= (size_t)sz) {
         LscLoadCached(data, src);
-    //data = *(message_t *)src;
+        //data = *(message_t *)src;
+    }
+    else if (valid_bytes > 0) {
+        sycl::vec<uint8_t, 16> raw((uint8_t)0);
+        auto src_bytes = reinterpret_cast<uint8_t *>(src);
+        for (size_t i = 0; i < valid_bytes; i++) {
+            raw[i] = src_bytes[i];
+        }
+        data = sycl::bit_cast<message_t>(raw);
+    }
 
     shuffle_data(data);
 
@@ -208,6 +251,7 @@ static inline void ll256_recv(char *recvbuf,
                               sycl::sub_group &sg,
                               int lid,
                               int req_workitems,
+                              size_t valid_bytes,
                               pattern_t pattern) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
     message_t data;
@@ -217,9 +261,14 @@ static inline void ll256_recv(char *recvbuf,
 
     restore_data(data);
 
-    if (lid < req_workitems) {
-        LscStoreUnCached(recvbuf, data);
-        //*(message_t *)recvbuf = data;
+    //if (lid < req_workitems) {
+    //    LscStoreUnCached(recvbuf, data);
+    //    //*(message_t *)recvbuf = data;
+    //}
+    // A lane may be scheduled (lid < req_workitems) yet map past total_bytes; skip the store when
+    // its payload length collapses to zero to avoid clobbering bytes beyond the user buffer.
+    if ((valid_bytes > 0) && (lid < req_workitems)) {
+        ll256_store_message(recvbuf, data, valid_bytes);
     }
 #endif
 }
@@ -231,6 +280,7 @@ static inline void ll256_forward(char *tmpbuf,
                                  sycl::sub_group &sg,
                                  int lid,
                                  int req_workitems,
+                                 size_t valid_bytes,
                                  pattern_t pattern) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
     message_t data;
@@ -242,9 +292,12 @@ static inline void ll256_forward(char *tmpbuf,
 
     restore_data(data);
 
-    if (lid < req_workitems) {
-        LscStoreUnCached(local_recvbuf, data);
-        //*(message_t *)remote_recvbuf = data;
+    //if (lid < req_workitems) {
+    //    LscStoreUnCached(local_recvbuf, data);
+    //*(message_t *)remote_recvbuf = data;
+    //}
+    if ((valid_bytes > 0) && (lid < req_workitems)) {
+        ll256_store_message(local_recvbuf, data, valid_bytes);
     }
 #endif
 }
