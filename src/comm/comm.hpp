@@ -108,6 +108,27 @@ constexpr size_t MAX_TILES = ccl::topo_manager::max_ranks_per_card;
 constexpr size_t MAX_GPUS = ccl::topo_manager::max_ranks_per_plane;
 constexpr size_t MAX_NODE_RANKS =
     ccl::topo_manager::max_ranks_per_card * ccl::topo_manager::max_ranks_per_plane;
+
+/*
+static inline uint32_t increase_rt_pattern(pattern_type type, int peer_rank, uint32_t pattern, uint32_t inc) {
+        const int pof2 = sizeof(unsigned int) * 8 - __builtin_clz((unsigned int)ARC_MAX_NUM) - 1;
+        const int mask = (1 << (16 - 1 - pof2)) - 1;
+        uint16_t counter = pattern & mask;
+        counter += inc;
+
+        if (type == pattern_type::collective) {
+            counter = counter & mask | 0x8000;
+        }
+        else if (type == pattern_type::send || type == pattern_type::recv) {
+            CCL_THROW_IF_NOT(peer_rank < ARC_MAX_NUM, "invalid rank: ", peer_rank);
+            int src_rank = type == pattern_type::send ? comm_rank : peer_rank;
+            counter = counter & mask | src_rank << (16 - 1 - pof2);
+        }
+
+        return global_current_id << 16 | counter;
+}
+*/
+
 class alignas(CACHELINE_SIZE) ccl_comm_barrier_data {
 private:
     int m_rank;
@@ -728,26 +749,27 @@ public:
     // X: 1 is collective, 0 is pt2pt
     // YYY: is the source rank of the pt2pt
     uint32_t get_rt_pattern(pattern_type type, int peer_rank) {
+        uint32_t pattern;
         uint16_t counter;
         const int pof2 = sizeof(unsigned int) * 8 - __builtin_clz((unsigned int)ARC_MAX_NUM) - 1;
-        const int mask = (1 << (16 - 1 - pof2)) - 1;
+        const int mask = (1 << (32 - 1 - pof2)) - 1;
         if (type == pattern_type::collective) {
             counter = pattern_counter[ARC_MAX_NUM];
-            counter = counter & mask | 0x8000;
+            pattern = counter & mask | 0x80000000;
         }
         else if (type == pattern_type::send || type == pattern_type::recv) {
             CCL_THROW_IF_NOT(peer_rank < ARC_MAX_NUM, "invalid rank: ", peer_rank);
             counter = pattern_counter[peer_rank];
             int src_rank = type == pattern_type::send ? comm_rank : peer_rank;
-            counter = counter & mask | src_rank << (16 - 1 - pof2);
+            pattern = counter & mask | src_rank << (32 - 1 - pof2);
         }
 
-        return global_current_id << 16 | counter;
+        return pattern;
     }
 
     void update_rt_pattern(pattern_type type, int peer_rank, uint32_t pattern) {
         const int pof2 = sizeof(unsigned int) * 8 - __builtin_clz((unsigned int)ARC_MAX_NUM) - 1;
-        const int mask = (1 << (16 - 1 - pof2)) - 1;
+        const int mask = (1 << (32 - 1 - pof2)) - 1;
         uint16_t counter = pattern & mask;
         if (type == pattern_type::collective) {
             pattern_counter[ARC_MAX_NUM] = counter;
