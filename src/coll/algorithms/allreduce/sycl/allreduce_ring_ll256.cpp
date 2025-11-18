@@ -168,6 +168,11 @@ sycl::event arc_ll256_allreduce(const void *src,
     char *recv_buf = static_cast<char *>(dst);
     char *send_buf = static_cast<char *>(const_cast<void *>(src));
 
+    if (ccl::global_data::env().sycl_ll_buffer_global) {
+        const bool is_cpu_barrier = ccl::global_data::env().sycl_ccl_barrier;
+        sycl::event barrier_event = invoke_barrier(node_comm, q, {}, is_cpu_barrier);
+    }
+
     /*
      * Intel(R) Arc(TM) A770 Graphics:
      *   Number Of Slices:                       1
@@ -218,24 +223,27 @@ sycl::event arc_ll256_allreduce(const void *src,
         int next_rank = (local_world_rank + 1) % local_world_size;
 
         char *local_peer_bufs[ARC_MAX_NUM];
-#if 0
-        // use large kernel persistent buffers
-        for (int i = 0; i < local_world_size; i++) {
-            local_peer_bufs[i] = (char *)get_remote_node_tmp_buf(0, comm)[i];
+        char *local_tmp_buf;
+        int GATHER_BUF_OFFSET;
+        if (ccl::global_data::env().sycl_ll_buffer_global) {
+            // use large kernel persistent buffers
+            for (int i = 0; i < local_world_size; i++) {
+                local_peer_bufs[i] = (char *)get_remote_node_tmp_buf(0, comm)[i];
+            }
+            //char *local_tmp_buf = local_peer_bufs[local_world_rank];
+            local_tmp_buf = (char *)get_tmp_buf(0, comm);
+            size_t persist_buf_size = ccl::global_data::env().sycl_tmp_buf_size / 3;
+            GATHER_BUF_OFFSET = persist_buf_size;
         }
-        //char *local_tmp_buf = local_peer_bufs[local_world_rank];
-        char *local_tmp_buf = (char *)get_tmp_buf(0, comm);
-        size_t persist_buf_size = ccl::global_data::env().sycl_tmp_buf_size / 3;
-        const int GATHER_BUF_OFFSET = persist_buf_size;
-#else
-        // use small kernel persistent buffers
-        auto [local_small_buf, remote_ptrs] = node_comm->get_all_tmp_bufs(true);
-        for (int i = 0; i < local_world_size; i++) {
-            local_peer_bufs[i] = (char *)remote_ptrs[i];
+        else {
+            // use small kernel persistent buffers
+            auto [local_small_buf, remote_ptrs] = node_comm->get_all_tmp_bufs(true);
+            for (int i = 0; i < local_world_size; i++) {
+                local_peer_bufs[i] = (char *)remote_ptrs[i];
+            }
+            local_tmp_buf = (char *)local_small_buf;
+            GATHER_BUF_OFFSET = ccl_tmp_bufs::buf_size / 2;
         }
-        char *local_tmp_buf = (char *)local_small_buf;
-        const int GATHER_BUF_OFFSET = ccl_tmp_bufs::buf_size / 2;
-#endif
 
         /*
          * In a single subgroup:

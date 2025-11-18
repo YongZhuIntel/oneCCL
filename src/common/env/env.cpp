@@ -223,6 +223,7 @@ env_data::env_data()
           sycl_pipeline_gpu_rdma(0),
           sycl_sub_communicator(1),
           sycl_force_pcie(0),
+          sycl_ll_buffer_global(0),
 #endif // CCL_ENABLE_SYCL
 
           allreduce_nreduce_buffering(0),
@@ -585,6 +586,7 @@ void env_data::parse() {
     p.env_2_type(CCL_SYCL_PIPELINE_GPU_RDMA, sycl_pipeline_gpu_rdma);
     p.env_2_type(CCL_SYCL_SUB_COMMUICATOR, sycl_sub_communicator);
     p.env_2_type(CCL_SYCL_FORCE_PCIE, sycl_force_pcie);
+    p.env_2_type(CCL_SYCL_LL_BUFFER_GLOBAL, sycl_ll_buffer_global);
 #endif // CCL_ENABLE_SYCL
 
     p.env_2_type(CCL_ALLREDUCE_NREDUCE_BUFFERING, allreduce_nreduce_buffering);
@@ -1038,6 +1040,7 @@ void env_data::print(int rank, bool is_mt_enabled) {
     LOG_INFO(CCL_SYCL_PIPELINE_GPU_RDMA, ": ", sycl_pipeline_gpu_rdma);
     LOG_INFO(CCL_SYCL_SUB_COMMUICATOR, ": ", sycl_sub_communicator);
     LOG_INFO(CCL_SYCL_FORCE_PCIE, ": ", sycl_force_pcie);
+    LOG_INFO(CCL_SYCL_LL_BUFFER_GLOBAL, ": ", sycl_ll_buffer_global);
 #endif // CCL_ENABLE_SYCL
 
     LOG_INFO(CCL_ALLREDUCE_NREDUCE_BUFFERING, ": ", allreduce_nreduce_buffering);

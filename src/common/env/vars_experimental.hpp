@@ -401,6 +401,8 @@ constexpr const char* CCL_SYCL_SUB_COMMUICATOR = "CCL_SYCL_SUB_COMMUICATOR";
 
 constexpr const char* CCL_SYCL_FORCE_PCIE = "CCL_SYCL_FORCE_PCIE";
 
+constexpr const char* CCL_SYCL_LL_BUFFER_GLOBAL = "CCL_SYCL_LL_BUFFER_GLOBAL";
+
 #if defined(CCL_ENABLE_SYCL) && defined(CCL_ENABLE_ZE) && defined(CCL_ENABLE_UMF)
 constexpr const char* CCL_UMF_ENABLE = "CCL_UMF_ENABLE";
 constexpr const char* CCL_UMF_LIBRARY_PATH = "CCL_UMF_LIBRARY_PATH";

@@ -272,6 +272,7 @@ public:
     int sycl_pipeline_gpu_rdma;
     bool sycl_sub_communicator;
     bool sycl_force_pcie;
+    bool sycl_ll_buffer_global;
     ccl::utils::alloc_mode sycl_scaleout_buf_alloc_mode;
     bool sycl_pt2pt_read;
 #endif // CCL_ENABLE_SYCL
