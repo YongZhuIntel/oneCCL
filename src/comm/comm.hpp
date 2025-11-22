@@ -109,26 +109,6 @@ constexpr size_t MAX_GPUS = ccl::topo_manager::max_ranks_per_plane;
 constexpr size_t MAX_NODE_RANKS =
     ccl::topo_manager::max_ranks_per_card * ccl::topo_manager::max_ranks_per_plane;
 
-/*
-static inline uint32_t increase_rt_pattern(pattern_type type, int peer_rank, uint32_t pattern, uint32_t inc) {
-        const int pof2 = sizeof(unsigned int) * 8 - __builtin_clz((unsigned int)ARC_MAX_NUM) - 1;
-        const int mask = (1 << (16 - 1 - pof2)) - 1;
-        uint16_t counter = pattern & mask;
-        counter += inc;
-
-        if (type == pattern_type::collective) {
-            counter = counter & mask | 0x8000;
-        }
-        else if (type == pattern_type::send || type == pattern_type::recv) {
-            CCL_THROW_IF_NOT(peer_rank < ARC_MAX_NUM, "invalid rank: ", peer_rank);
-            int src_rank = type == pattern_type::send ? comm_rank : peer_rank;
-            counter = counter & mask | src_rank << (16 - 1 - pof2);
-        }
-
-        return global_current_id << 16 | counter;
-}
-*/
-
 class alignas(CACHELINE_SIZE) ccl_comm_barrier_data {
 private:
     int m_rank;
@@ -767,6 +747,7 @@ public:
         return pattern;
     }
 
+    /*
     void update_rt_pattern(pattern_type type, int peer_rank, uint32_t pattern) {
         const int pof2 = sizeof(unsigned int) * 8 - __builtin_clz((unsigned int)ARC_MAX_NUM) - 1;
         const int mask = (1 << (32 - 1 - pof2)) - 1;
@@ -778,6 +759,38 @@ public:
             CCL_THROW_IF_NOT(peer_rank < ARC_MAX_NUM, "invalid rank: ", peer_rank);
             pattern_counter[peer_rank] = counter;
         }
+    }
+*/
+
+    uint32_t increase_rt_pattern(pattern_type type,
+                                 int peer_rank,
+                                 uint32_t pattern,
+                                 uint32_t inc = 1) {
+        uint32_t counter;
+        uint32_t new_pattern;
+        if (type == pattern_type::collective) {
+            const int pof2 =
+                sizeof(unsigned int) * 8 - __builtin_clz((unsigned int)ARC_MAX_NUM) - 1;
+            const uint32_t mask = (1 << (32 - 1 - pof2)) - 1;
+            //const uint32_t mask = (1U << (32 - 1)) - 1;
+            counter = pattern & mask;
+            counter = (counter + inc) & mask;
+            pattern_counter[ARC_MAX_NUM] = counter;
+            new_pattern = (counter & mask) | (1U << (32 - 1));
+        }
+        else if (type == pattern_type::send || type == pattern_type::recv) {
+            const int pof2 =
+                sizeof(unsigned int) * 8 - __builtin_clz((unsigned int)ARC_MAX_NUM) - 1;
+            const uint32_t mask = (1 << (32 - 1 - pof2)) - 1;
+            counter = pattern & mask;
+            counter = (counter + inc) & mask;
+            pattern_counter[peer_rank] = counter;
+            CCL_THROW_IF_NOT(peer_rank < ARC_MAX_NUM, "invalid rank: ", peer_rank);
+            const uint32_t high_mask = ((uint32_t)~0) << (32 - 1 - pof2);
+            new_pattern = (counter & mask) | (pattern & high_mask);
+        }
+
+        return new_pattern;
     }
 #endif // CCL_ENABLE_SYCL
 
