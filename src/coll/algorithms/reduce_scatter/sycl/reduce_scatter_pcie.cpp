@@ -40,7 +40,7 @@ ccl::event reduce_scatter_rt_ring(const void *src,
     size_t dt_sz = ccl_dtype.size();
 
     bool p2p = node_comm->get_topo_manager().has_p2p_access();
-    uint32_t pattern = comm->get_rt_pattern(pattern_type::collective, -1);
+    uint32_t pattern = node_comm->get_rt_pattern(pattern_type::collective, -1);
 
     auto lambda = [&]<typename T, template <typename, int> class Proto>(int NRanks) {
         T *peerbuf0[NRanks];
@@ -75,9 +75,9 @@ ccl::event reduce_scatter_rt_ring(const void *src,
                                                                       comm_rank,
                                                                       pattern,
                                                                       q,
+                                                                      node_comm,
                                                                       p2p,
                                                                       done);
-        comm->update_rt_pattern(pattern_type::collective, -1, pattern);
         return e;
     };
 

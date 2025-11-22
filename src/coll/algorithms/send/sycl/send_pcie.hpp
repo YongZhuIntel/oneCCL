@@ -54,7 +54,12 @@ struct Send : public Transmit<T, Proto, SubGroupSize> {
                                                p2p),
               workSize(calcWorkSize(input, nelems * sizeof(T))) {}
 
-    sycl::nd_range<1> getLaunchParam(uint32_t& updateSeqNo) const {
+    sycl::nd_range<1> getLaunchParam(sycl::queue q,
+                                     const std::shared_ptr<ccl_comm> comm,
+                                     int peer_rank,
+                                     T* ipcbuf0,
+                                     T* ipcbuf1,
+                                     uint32_t& updateSeqNo) const {
         constexpr uint32_t nThreads = 64; /* TODO: get EU/thread config */
 #if defined(CCL_SYCL_ENABLE_PVC)
         constexpr size_t maxSS = 64;
@@ -69,7 +74,19 @@ struct Send : public Transmit<T, Proto, SubGroupSize> {
         size_t nSS = divUp(nWire, wirePerSS);
         auto actualSS = std::min(nSS, maxSS);
         auto nSteps = divUp(nWire, actualSS * wirePerSS);
-        updateSeqNo += nSteps;
+        //auto nSlot = Transmit<T, Proto, SubGroupSize>::nSlot;
+        //nSteps = (nSteps + nSlot - 1) / nSlot;
+        auto newSeqNo =
+            comm->increase_rt_pattern(pattern_type::send, peer_rank, updateSeqNo, nSteps);
+        // check for pattern wraparound
+        rt_check_pattern<T>(q,
+                            comm,
+                            updateSeqNo,
+                            newSeqNo,
+                            ipcbuf0,
+                            ipcbuf1,
+                            RingTransmit<int, Rt64_128_PCIE>::ringSize / sizeof(T));
+        updateSeqNo = newSeqNo;
         //
         // XXX: we over updated sequence number. Should be nSteps / nSlot
         // No harm, but not nice.
@@ -88,6 +105,7 @@ struct Send : public Transmit<T, Proto, SubGroupSize> {
                               int peer_rank,
                               uint32_t& step,
                               sycl::queue queue,
+                              const std::shared_ptr<ccl_comm> comm,
                               std::vector<sycl::event>& dep_events,
                               bool p2p,
                               bool& done) {
@@ -100,9 +118,13 @@ struct Send : public Transmit<T, Proto, SubGroupSize> {
         }
         done = true;
 
+        // peer_rank is actual rank minus 1 because the ringTransmit calculate
+        // next neighbor by rank plus 1
+        const sycl::nd_range<1> ndrange =
+            offload.getLaunchParam(queue, comm, peer_rank + 1, ipcbuf0, ipcbuf1, step);
         e = queue.submit([&](sycl::handler& cgh) {
             cgh.depends_on(dep_events);
-            cgh.parallel_for(offload.getLaunchParam(step), offload);
+            cgh.parallel_for(ndrange, offload);
         });
         return e;
     }

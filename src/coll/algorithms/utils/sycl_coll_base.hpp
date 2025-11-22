@@ -759,6 +759,25 @@ inline size_t calculate_chunking_pack_count(size_t chunk_size,
     return nchunks;
 }
 
+template <typename T>
+inline void rt_check_pattern(sycl::queue q,
+                             const std::shared_ptr<ccl_comm> comm,
+                             uint32_t seqNo,
+                             uint32_t newSeqNo,
+                             T *ipcbuf0,
+                             T *ipcbuf1,
+                             size_t count) {
+    if (newSeqNo < seqNo || comm->pattern_reset_is_due()) {
+        if (newSeqNo < seqNo) {
+            comm->pattern_reset_set_due();
+        }
+        comm->pattern_reset_performed();
+        q.fill(ipcbuf0, 0, count);
+        q.fill(ipcbuf1, 0, count);
+        invoke_barrier(comm, q, {}, true);
+    }
+}
+
 sycl::event sycl_average(sycl::queue &q,
                          void *reduce_buf,
                          const size_t reduce_count,
