@@ -47,7 +47,6 @@ struct Rt64_128_PCIE {
         auto sg = sycl::ext::oneapi::this_work_item::get_sub_group();
         auto lid = sg.get_local_id()[0];
         int local_off = lid * sizeof(message_t) / sizeof(T);
-	constexpr int eltPerMsg = sizeof(message_t) / sizeof(T);
 
         if (lid < payloadChannels) {
 #pragma unroll
@@ -55,27 +54,9 @@ struct Rt64_128_PCIE {
                 auto off = i * wireCapacityInType + local_off;
                 if (off < nElt) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
-		   if (off + eltPerMsg < nElt) {
-                    	lscLoad<SubGroupSize>(v[i], src + off);
-		   } else {
-	 	   //Insufficient data for a complete message_t, use element by element loading
-		        auto* msg_ptr = reinterpret_cast<T*>(&v[i]);
-			int remaining_elts = nElt - off;
-
-			for (int j = 0; j < remaining_elts; ++j) {
-			    if(j < eltPerMsg){
-				    msg_ptr[j] = src[off + j];
-			    }
-		   	}
-
-			for (int j = remaining_elts; j < eltPerMsg; ++j) {
-				if (j < eltPerMsg) {
-					msg_ptr[j] = T(0);
-				}
-			}
-		   }
+                    lscLoad<SubGroupSize>(v[i], src + off);
 #else
-                   (void)off;
+                    (void)off;
 #endif
                 }
             }
@@ -86,33 +67,15 @@ struct Rt64_128_PCIE {
         auto sg = sycl::ext::oneapi::this_work_item::get_sub_group();
         auto lid = sg.get_local_id()[0];
         int off = lid * sizeof(message_t) / sizeof(T);
-	constexpr int eltPerMsg = sizeof(message_t) / sizeof(T);
 
         if (lid < payloadChannels) {
             if (off < nElt) {
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
-		if (off + eltPerMsg <= nElt) {
-               	     lscLoad<SubGroupSize>(v, src + off);
-		} else {
-		     auto* msg_ptr = reinterpret_cast<T*>(&v);
-		     int remaining_elts = nElt - off;
-
-		     for (int j = 0; j < remaining_elts; ++j) {
-			 if (j < eltPerMsg) {
-			     msg_ptr[j] = src[off + j];
-			 }
-		     }
-
-		     for (int j = remaining_elts; j < eltPerMsg; ++j) {
-			 if (j < eltPerMsg) {
-		             msg_ptr[j] = T(0);
-			 }
-		     }
-		}
+                lscLoad<SubGroupSize>(v, src + off);
 #else
-                  (void)off;
+                (void)off;
 #endif
-             }
+            }
         }
     }
 
@@ -396,23 +359,13 @@ struct Rt64_128_PCIE {
         auto sg = sycl::ext::oneapi::this_work_item::get_sub_group();
         auto lid = sg.get_local_id()[0];
         int local_off = lid * sizeof(message_t) / sizeof(T);
-	constexpr int eltPerMsg = sizeof(message_t) / sizeof(T);
         if (lid < payloadChannels) { // XXX: Fixed diverge
 #pragma unroll
             for (int i = 0; i < unroll; ++i) {
                 auto off = i * wireCapacityInType + local_off;
                 if (off < nElt) { // XXX: runtime condition
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
-		    if (off + eltPerMsg <= nElt) {
-                    	lscStore<SubGroupSize>(dst + off, v[i]);
-		    } else {
-			auto* msg_ptr = reinterpret_cast<T*>(&v);
-			int remaining_elts = nElt - off;
-
-			for (int j = 0; j < remaining_elts; ++j) {
-			     dst[off + j] = msg_ptr[j];
-			}
-		    }
+                    lscStore<SubGroupSize>(dst + off, v[i]);
 #endif
                 }
             }
@@ -423,21 +376,10 @@ struct Rt64_128_PCIE {
         auto sg = sycl::ext::oneapi::this_work_item::get_sub_group();
         auto lid = sg.get_local_id()[0];
         int off = lid * sizeof(message_t) / sizeof(T);
-	constexpr int eltPerMsg = sizeof(message_t) / sizeof(T);
-
         if (lid < payloadChannels) { // XXX: Fixed diverge
             if (off < nElt) { // XXX: runtime condition
 #if defined(__SYCL_DEVICE_ONLY__) && defined(__SPIR__)
-		if (off + eltPerMsg <= nElt) {
-                     lscStore<SubGroupSize>(dst + off, v);
-		} else {
-		     auto* msg_ptr = reinterpret_cast<T*>(&v);
-		     int remaining_elts = nElt - off;
-
-		     for (int j = 0; j < remaining_elts && j < eltPerMsg; ++j) {
-			     dst[off + j] = msg_ptr[j];
-		     }
-		}
+                lscStore<SubGroupSize>(dst + off, v);
 #endif
             }
         }
