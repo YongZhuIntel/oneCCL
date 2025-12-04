@@ -45,7 +45,7 @@
 #include "topology/topo_manager.hpp"
 #include "unordered_coll/unordered_coll.hpp"
 
-#define ARC_MAX_NUM (32)
+#define ARC_MAX_NUM (64)
 
 enum class pattern_type { collective, send, recv };
 
