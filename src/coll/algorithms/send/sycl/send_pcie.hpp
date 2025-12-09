@@ -54,11 +54,7 @@ struct Send : public Transmit<T, Proto, SubGroupSize> {
                                                p2p),
               workSize(calcWorkSize(input, nelems * sizeof(T))) {}
 
-    sycl::nd_range<1> getLaunchParam(sycl::queue q,
-                                     ccl_comm* comm,
-                                     T* ipcbuf0,
-                                     T* ipcbuf1,
-                                     uint32_t& updateSeqNo) const {
+    sycl::nd_range<1> getLaunchParam(uint32_t& updateSeqNo) const {
         constexpr uint32_t nThreads = 64; /* TODO: get EU/thread config */
 #if defined(CCL_SYCL_ENABLE_PVC)
         constexpr size_t maxSS = 64;
@@ -74,14 +70,6 @@ struct Send : public Transmit<T, Proto, SubGroupSize> {
         auto actualSS = std::min(nSS, maxSS);
         auto nSteps = divUp(nWire, actualSS * wirePerSS);
         updateSeqNo += nSteps;
-        auto newSeqNo =
-            comm->increase_rt_pattern(pattern_type::collective, -1, updateSeqNo, nSteps);
-        // wrap around happens
-        if (newSeqNo < updateSeqNo) {
-            q.fill(ipcbuf0, 0, RingTransmit<int, Rt64_128_PCIE>::ringSize / sizeof(T));
-            q.fill(ipcbuf1, 0, RingTransmit<int, Rt64_128_PCIE>::ringSize / sizeof(T));
-        }
-        updateSeqNo = newSeqNo;
         //
         // XXX: we over updated sequence number. Should be nSteps / nSlot
         // No harm, but not nice.
@@ -100,7 +88,6 @@ struct Send : public Transmit<T, Proto, SubGroupSize> {
                               int peer_rank,
                               uint32_t& step,
                               sycl::queue queue,
-                              ccl_comm* comm,
                               std::vector<sycl::event>& dep_events,
                               bool p2p,
                               bool& done) {
@@ -115,7 +102,7 @@ struct Send : public Transmit<T, Proto, SubGroupSize> {
 
         e = queue.submit([&](sycl::handler& cgh) {
             cgh.depends_on(dep_events);
-            cgh.parallel_for(offload.getLaunchParam(queue, comm, ipcbuf0, ipcbuf1, step), offload);
+            cgh.parallel_for(offload.getLaunchParam(step), offload);
         });
         return e;
     }
