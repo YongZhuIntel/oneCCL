@@ -114,6 +114,32 @@ std::vector<sycl::event> alltoall_memcpy_read(sycl::queue &queue,
     return events;
 }
 
+// use copy engine and rank scatter
+template <size_t vec_size, typename DataType, size_t N_RANKS>
+std::vector<sycl::event> alltoall_vec_write_aligned_with_ce(
+    sycl::queue &queue,
+    const std::shared_ptr<ccl_comm> node_comm,
+    const std::array<DataType *, N_RANKS> &send_bufs,
+    std::array<DataType *, N_RANKS> &recv_bufs,
+    size_t per_rank_count,
+    size_t rank,
+    sycl::event &dep) {
+    sycl::event e;
+   // std::cout << "enter " << __func__ << ", rank: " << rank << ", count: " << per_rank_count << std::endl;
+    for (int i = 0; i < N_RANKS; i++) {
+        // scatter the ranks
+        int peer = (rank + i) % N_RANKS;
+        e = queue.submit([=](sycl::handler &h) {
+            h.depends_on(dep);
+            h.memcpy(&recv_bufs[peer][rank * per_rank_count],
+                     &send_bufs[rank][peer * per_rank_count],
+                     per_rank_count * sizeof(DataType));
+        });
+    }
+    return { e };
+}
+
+
 template <size_t vec_size, typename DataType, size_t N_RANKS>
 std::vector<sycl::event> alltoall_vec_write_aligned(
     sycl::queue &queue,
@@ -125,6 +151,14 @@ std::vector<sycl::event> alltoall_vec_write_aligned(
     sycl::event &dep,
     bool is_arc) {
     CCL_THROW_IF_NOT(vec_size > 0, "vec_size has to be a positive value");
+
+    //bool is_arc = is_arc_card(ccl::global_data::get().ze_data->devices[0].family);
+    // for BMG on PCIe systems
+    if (is_arc && per_rank_count * sizeof(DataType) * N_RANKS >= 128 * 1024) {
+        return alltoall_vec_write_aligned_with_ce<vec_size, DataType, N_RANKS>(
+            queue, node_comm, send_bufs, recv_bufs, per_rank_count, rank, dep);
+    }
+
 
     sycl::event e;
     const bool is_cpu_barrier = ccl::global_data::env().sycl_ccl_barrier;
