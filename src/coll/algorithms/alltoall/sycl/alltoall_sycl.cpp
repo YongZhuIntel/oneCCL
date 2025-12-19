@@ -65,7 +65,9 @@ ccl::event alltoall_sycl_single_node(sycl::queue& q,
         ccl::global_data::env().sycl_enable_arc_alltoall_ll) {
         ccl::event e;
         size_t dt_sz = ccl_dtype.size();
-        if (((count * dt_sz) % LS_SZ == 0) && ((world & (world - 1)) == 0)) {
+	size_t switch_threshold = ccl::global_data::env().sycl_alltoall_ll_switch_threshold;
+        if (((count * dt_sz) % LS_SZ == 0) && ((world & (world - 1)) == 0) &&
+            (switch_threshold <= 0 || (count * dt_sz) <= switch_threshold)) {
 #ifdef CCL_ENABLE_ITT
             ccl::profile::itt::task_begin("arc_alltoall", "send_size", count * ccl_dtype.size());
 #endif // CCL_ENABLE_ITT
