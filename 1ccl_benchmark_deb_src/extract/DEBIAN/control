@@ -1,0 +1,10 @@
+Package: 1ccl-benchmark
+Version: oneccl_version_replace
+Architecture: all
+Maintainer: Zhu Yong <yong.zhu@intel.com>
+Installed-Size: 8155
+Section: unknown
+Priority: optional
+Homepage: https://github.com/oneapi-src/oneCCL.git
+Description: Intel oneccl for multi-arc
+ <insert long description, indented with spaces>
