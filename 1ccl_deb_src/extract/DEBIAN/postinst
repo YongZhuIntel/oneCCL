@@ -7,7 +7,7 @@ case "$1" in
     configure)
         echo "postinst called with argument \`$1'" >&2
         
-        CCL_Root="/opt/custom/"
+        CCL_Root="/opt/oneccl_custom/"
        
         mkdir -p /opt/intel/oneapi/ccl/
         
@@ -17,6 +17,7 @@ case "$1" in
         cd /opt/intel/oneapi/ccl/ || exit 1
         ln -snf oneccl_version_replace latest
 
+	rm -rf $CCL_Root
         echo "activate ccl environment"
 
         ;;
