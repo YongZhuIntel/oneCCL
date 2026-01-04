@@ -20,8 +20,8 @@ cp -rd 1ccl_deb_src 1ccl_deb_release
 cd 1ccl_deb_release
 cp -rd ../build/_install ./
 rm -rf _install/opt
-cp _install/examples/benchmark/benchmark extract/opt/custom/benchmark/1ccl_benchmark
-mv _install/ extract/opt/custom/oneapi/ccl/$deb_version
+cp _install/examples/benchmark/benchmark extract/opt/oneccl_custom/benchmark/1ccl_benchmark
+mv _install/ extract/opt/oneccl_custom/oneapi/ccl/$deb_version
 
 sed -i "s/oneccl_version_replace/$deb_version/g" extract/DEBIAN/control
 sed -i "s/oneccl_version_replace/$deb_version/g" extract/DEBIAN/postinst
