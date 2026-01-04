@@ -1,0 +1,33 @@
+#!/bin/bash
+# see: dh_installdeb(1)
+
+set -e
+
+case "$1" in
+    configure)
+        echo "postinst called with argument \`$1'" >&2
+        
+        CCL_Root="/opt/custom/"
+       
+        mkdir -p /opt/intel/oneapi/ccl/
+        
+        cp -r "$CCL_Root/oneapi/ccl/oneccl_version_replace" /opt/intel/oneapi/ccl/
+        cp -r "$CCL_Root/benchmark/1ccl_benchmark" /usr/bin/
+        
+        cd /opt/intel/oneapi/ccl/ || exit 1
+        ln -snf oneccl_version_replace latest
+
+        echo "activate ccl environment"
+
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
