@@ -1,0 +1,25 @@
+#!/bin/bash
+# see: dh_installdeb(1)
+
+set -e
+
+case "$1" in
+    configure)
+        echo "postinst called with argument \`$1'" >&2
+    
+       	CCL_Root="/opt/oneccl_benchmark_custom/"
+	cp -r "$CCL_Root/benchmark/1ccl_benchmark" /usr/bin/
+
+	rm -rf $CCL_Root
+        ;;
+
+    abort-upgrade|abort-remove|abort-deconfigure)
+        ;;
+
+    *)
+        echo "postinst called with unknown argument \`$1'" >&2
+        exit 1
+        ;;
+esac
+
+exit 0
