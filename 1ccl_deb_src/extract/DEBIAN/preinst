@@ -24,12 +24,12 @@ case "$1" in
 	else
 		echo "/opt/intel/oneapi/ccl/oneccl_version_replace doesn't exist"
 	fi
-        if [ -e /usr/bin/1ccl_benchmark ]; then
-                echo "/usr/bin/1ccl_benchmark exists, deleting"
-                 rm -rf /usr/bin/1ccl_benchmark > /dev/null 2>&1
-        else
-                echo "/usr/bin/1ccl_benchmark doesn't exist"
-        fi
+        #if [ -e /usr/bin/1ccl_benchmark ]; then
+        #        echo "/usr/bin/1ccl_benchmark exists, deleting"
+        #         rm -rf /usr/bin/1ccl_benchmark > /dev/null 2>&1
+        #else
+        #        echo "/usr/bin/1ccl_benchmark doesn't exist"
+        #fi
 
 
     ;;

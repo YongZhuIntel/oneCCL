@@ -12,7 +12,7 @@ case "$1" in
         mkdir -p /opt/intel/oneapi/ccl/
         
         cp -r "$CCL_Root/oneapi/ccl/oneccl_version_replace" /opt/intel/oneapi/ccl/
-        cp -r "$CCL_Root/benchmark/1ccl_benchmark" /usr/bin/
+        #cp -r "$CCL_Root/benchmark/1ccl_benchmark" /usr/bin/
         
         cd /opt/intel/oneapi/ccl/ || exit 1
         ln -snf oneccl_version_replace latest

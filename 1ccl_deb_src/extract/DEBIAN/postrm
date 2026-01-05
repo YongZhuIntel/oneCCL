@@ -25,12 +25,12 @@ case "$1" in
 
     purge|remove)
         echo "postrm is called with argument \`$1'" 
-               if [ -e /usr/bin/1ccl_benchmark  ]; then
-                        echo "/usr/bin/1ccl_benchmark  exists, deleting"
-                        rm -rf /usr/bin/1ccl_benchmark  > /dev/null 2>&1
-                else
-                        echo "/usr/bin/1ccl_benchmark  doesn't exist"
-                fi
+               #if [ -e /usr/bin/1ccl_benchmark  ]; then
+               #         echo "/usr/bin/1ccl_benchmark  exists, deleting"
+               #         rm -rf /usr/bin/1ccl_benchmark  > /dev/null 2>&1
+               # else
+               #         echo "/usr/bin/1ccl_benchmark  doesn't exist"
+               # fi
 
 		if [ -d /opt/intel/oneapi/ccl/oneccl_version_replace ]; then
 			echo "/opt/intel/oneapi/ccl/oneccl_version_replace exists, deleting"
