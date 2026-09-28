@@ -18,7 +18,7 @@ fi
 cp -rd 1ccl_benchmark_deb_src 1ccl_benchmark_deb_release
 
 cd 1ccl_benchmark_deb_release
-cp ../build/_install/examples/benchmark/benchmark extract/opt/oneccl_benchmark_custom/benchmark/1ccl_benchmark
+cp ../build/libccl/examples/benchmark/benchmark extract/opt/oneccl_benchmark_custom/benchmark/1ccl_benchmark
 
 sed -i "s/oneccl_version_replace/$deb_version/g" extract/DEBIAN/control
 sed -i "s/oneccl_version_replace/$deb_version/g" extract/DEBIAN/postinst
